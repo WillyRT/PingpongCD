@@ -3,7 +3,7 @@
 **Date**: 2026-08-28  
 **Project**: TourneyMaster AI (Table Tennis Tournament Progressive Web App)  
 **Location**: `C:\Users\guill\.gemini\antigravity\scratch\tourneymaster-ai`  
-**Supabase Instance**: `https://xgsfhzlnanarplsapmcj.supabase.co`  
+**Supabase Instance**: `https://edsldyequhnmdpcpsknq.supabase.co`  
 **Overall Status**: **`GREEN — 100% PRODUCTION READY & EVOLVED`**
 
 ---
@@ -109,6 +109,40 @@ ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAU
 ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS win_expectancy_p1 NUMERIC(4,3);
 ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS win_expectancy_p2 NUMERIC(4,3);
 ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS is_upset BOOLEAN DEFAULT false;
+---
+
+## 📊 2. Live Database Verification Proof (Supabase Instance: edsldyequhnmdpcpsknq)
+
+```text
+=== VERIFYING REAL SUPABASE DATA COUNTS ===
+Canonical Players in DB: 29
+Player Aliases in DB: 29
+Historical Tournaments in DB: 3
+Historical Groups in DB: 11
+Historical Matches Total in DB: 214
+  - Complete matches: 213
+  - Missing matches: 1
+Rating States in DB: 29
+Rating Snapshots in DB: 74
+
+Missing Match Verification:
+  Status: missing
+  Player 1: Carlos Ross
+  Player 2: Lucia Marin
+  Scores: 0 - 0
+  Winner ID: null (must be null)
+
+Superadmin Designation:
+  Email: guillermoriveraterriza@gmail.com
+  Role: super_admin
+  Admin Status: approved
+
+Top 5 Glicko-2 Rated Players in Remote Supabase:
+  1. Pablo Gascon: Rating 2048.2, RD 126.1, Matches 18
+  2. Pablo Olalla: Rating 1986.7, RD 119.0, Matches 17
+  3. Alvaro Peña: Rating 1985.4, RD 139.8, Matches 11
+  4. Sergio Rebellón: Rating 1892.2, RD 121.7, Matches 17
+  5. Xabier Barrero: Rating 1856.5, RD 118.7, Matches 18
 ```
 
 ---
