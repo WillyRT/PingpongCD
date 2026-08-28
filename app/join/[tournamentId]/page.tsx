@@ -6,15 +6,62 @@ interface PageProps {
   params: Promise<{ tournamentId: string }>;
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export default async function PublicJoinPage({ params }: PageProps) {
   const { tournamentId } = await params;
+  const decodedParam = decodeURIComponent(tournamentId).trim();
   const supabase = await createClient();
 
-  const { data: tournament } = await supabase
-    .from('tournaments')
-    .select('*')
-    .or(`id.eq.${tournamentId},slug.eq.${tournamentId}`)
-    .single();
+  let tournament = null;
+
+  // a) Primero por id (si el parámetro tiene formato UUID)
+  if (UUID_REGEX.test(decodedParam)) {
+    const { data } = await supabase
+      .from('tournaments')
+      .select('*')
+      .eq('id', decodedParam)
+      .maybeSingle();
+    tournament = data;
+  }
+
+  // b) Si no lo encuentra o no es UUID, por la columna slug
+  if (!tournament) {
+    // 1. Intento por slug exacto decodificado
+    const { data: bySlug } = await supabase
+      .from('tournaments')
+      .select('*')
+      .eq('slug', decodedParam)
+      .maybeSingle();
+    tournament = bySlug;
+
+    // 2. Intento por slug normalizado (minúsculas, guiones, sin acentos)
+    if (!tournament) {
+      const normalizedSlug = decodedParam
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+      const { data: byNormSlug } = await supabase
+        .from('tournaments')
+        .select('*')
+        .eq('slug', normalizedSlug)
+        .maybeSingle();
+      tournament = byNormSlug;
+    }
+
+    // 3. Intento case-insensitive
+    if (!tournament) {
+      const { data: byIlike } = await supabase
+        .from('tournaments')
+        .select('*')
+        .ilike('slug', decodedParam)
+        .maybeSingle();
+      tournament = byIlike;
+    }
+  }
 
   if (!tournament) notFound();
 

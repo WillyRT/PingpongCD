@@ -6,15 +6,48 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export default async function TournamentLanding({ params }: PageProps) {
   const { slug } = await params;
+  const decodedParam = decodeURIComponent(slug).trim();
   const supabase = await createClient();
 
-  const { data: tournament } = await supabase
-    .from('tournaments')
-    .select('*')
-    .eq('slug', slug)
-    .single();
+  let tournament = null;
+
+  if (UUID_REGEX.test(decodedParam)) {
+    const { data } = await supabase
+      .from('tournaments')
+      .select('*')
+      .eq('id', decodedParam)
+      .maybeSingle();
+    tournament = data;
+  }
+
+  if (!tournament) {
+    const { data: bySlug } = await supabase
+      .from('tournaments')
+      .select('*')
+      .eq('slug', decodedParam)
+      .maybeSingle();
+    tournament = bySlug;
+
+    if (!tournament) {
+      const normalizedSlug = decodedParam
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+      const { data: byNorm } = await supabase
+        .from('tournaments')
+        .select('*')
+        .eq('slug', normalizedSlug)
+        .maybeSingle();
+      tournament = byNorm;
+    }
+  }
 
   if (!tournament) notFound();
 
@@ -77,17 +110,17 @@ export default async function TournamentLanding({ params }: PageProps) {
         </div>
 
         {/* Actions */}
-        {tournament.status === 'registration' && !isRegistered && (
+        {(tournament.status === 'registration' || tournament.status === 'draft') && !isRegistered && (
           <div className="space-y-3">
             <Link
-              href={`/join/${slug}`}
+              href={`/join/${tournament.id}`}
               className="block w-full px-6 py-4 rounded-xl gradient-primary text-white font-semibold text-lg text-center transition-transform hover:scale-105 active:scale-95 shadow-lg"
             >
               🏓 Inscribirse al Torneo
             </Link>
             {!user && (
               <Link
-                href={`/login?redirectTo=/t/${slug}`}
+                href={`/login?redirectTo=/t/${tournament.slug}`}
                 className="block text-xs text-[var(--muted-foreground)] hover:text-white text-center underline"
               >
                 ¿Ya tienes cuenta? Inicia sesión aquí

@@ -43,7 +43,14 @@ export async function createTournamentAction(formData: {
       return { success: false, error: 'Only admins can create tournaments' };
     }
 
-    const slug = `${parsed.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString(36)}`;
+    const cleanName = parsed.name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const slug = `${cleanName || 'torneo'}-${Date.now().toString(36)}`;
 
     const { data: tournament, error: tourneyError } = await supabase
       .from('tournaments')

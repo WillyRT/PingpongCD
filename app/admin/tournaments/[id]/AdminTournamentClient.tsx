@@ -166,7 +166,7 @@ export function AdminTournamentClient({
   };
 
   const appUrl = typeof window !== 'undefined' ? window.location.origin : '';
-  const qrUrl = `${appUrl}/join/${tournament.slug}`;
+  const qrUrl = `${appUrl}/join/${tournament.id}`;
 
   return (
     <main className="min-h-screen pb-20">
@@ -235,7 +235,7 @@ export function AdminTournamentClient({
           </div>
 
           <Link
-            href={`/join/${tournament.slug}`}
+            href={`/join/${tournament.id}`}
             target="_blank"
             className="px-3 py-1.5 rounded-lg bg-[var(--secondary)] text-xs font-semibold text-[var(--primary)] hover:bg-[var(--secondary)]/80 flex items-center gap-1.5"
           >

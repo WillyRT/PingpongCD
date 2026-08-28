@@ -91,19 +91,61 @@ export async function publicJoinTournamentAction(formData: {
   try {
     const supabase = await createClient();
 
-    // 1. Resolve tournament
-    const { data: tournament } = await supabase
-      .from('tournaments')
-      .select('*')
-      .or(`id.eq.${formData.tournamentIdOrSlug},slug.eq.${formData.tournamentIdOrSlug}`)
-      .single();
+    // 1. Resolve tournament safely (dual lookup: UUID or slug)
+    const rawParam = decodeURIComponent(formData.tournamentIdOrSlug).trim();
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    let tournament = null;
+
+    if (UUID_REGEX.test(rawParam)) {
+      const { data } = await supabase
+        .from('tournaments')
+        .select('*')
+        .eq('id', rawParam)
+        .maybeSingle();
+      tournament = data;
+    }
+
+    if (!tournament) {
+      const { data: bySlug } = await supabase
+        .from('tournaments')
+        .select('*')
+        .eq('slug', rawParam)
+        .maybeSingle();
+      tournament = bySlug;
+
+      if (!tournament) {
+        const normalizedSlug = rawParam
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+
+        const { data: byNorm } = await supabase
+          .from('tournaments')
+          .select('*')
+          .eq('slug', normalizedSlug)
+          .maybeSingle();
+        tournament = byNorm;
+      }
+
+      if (!tournament) {
+        const { data: byIlike } = await supabase
+          .from('tournaments')
+          .select('*')
+          .ilike('slug', rawParam)
+          .maybeSingle();
+        tournament = byIlike;
+      }
+    }
 
     if (!tournament) {
       return { success: false, error: 'Torneo no encontrado' };
     }
 
-    if (tournament.status !== 'registration' && tournament.status !== 'draft') {
-      return { success: false, error: 'Las inscripciones para este torneo están cerradas' };
+    const st = (tournament.status || '').toLowerCase();
+    if (st === 'finished' || st === 'completed') {
+      return { success: false, error: 'Las inscripciones para este torneo están cerradas porque el torneo ha finalizado' };
     }
 
     const category = determineAgeCategory(formData.birthDateOrAge);

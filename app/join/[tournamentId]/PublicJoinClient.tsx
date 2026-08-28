@@ -73,9 +73,12 @@ export function PublicJoinClient({
     }
   };
 
+  const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://tourneymaster.app';
+  const joinUrl = `${appOrigin}/join/${tournament.id}`;
+
   const handleCopyLink = () => {
-    if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText(window.location.href);
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(joinUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -106,8 +109,6 @@ export function PublicJoinClient({
       }
     });
   };
-
-  const joinUrl = typeof window !== 'undefined' ? window.location.href : `https://tourneymaster.app/join/${tournament.slug}`;
 
   if (success) {
     return (
