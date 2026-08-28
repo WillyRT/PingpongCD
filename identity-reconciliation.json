@@ -1,0 +1,363 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TourneyMaster AI — Historical Identity Reconciliation Matrix",
+  "generatedAt": "2026-08-24T12:45:00Z",
+  "summary": {
+    "totalCanonicalPlayers": 29,
+    "totalAliases": 34,
+    "confirmedCount": 29,
+    "probableCount": 5,
+    "unresolvedCount": 0
+  },
+  "investigatedCases": [
+    {
+      "case": "Javier Benito / Javi Benito",
+      "canonicalTarget": "Javier Benito",
+      "status": "PROBABLE",
+      "confidence": 0.85,
+      "recommendation": "Review in Admin Identity Resolution dashboard before automatic longitudinal merge."
+    },
+    {
+      "case": "Isa Planas / Isabel Planas",
+      "canonicalTarget": "Isabel Planas",
+      "status": "PROBABLE",
+      "confidence": 0.85,
+      "recommendation": "Review in Admin Identity Resolution dashboard before automatic longitudinal merge."
+    },
+    {
+      "case": "Santi Teherán / Santiago Terán / Santi Terán",
+      "canonicalTarget": "Santiago Terán",
+      "status": "PROBABLE",
+      "confidence": 0.85,
+      "recommendation": "Spelling variations of surname require explicit administrator confirmation."
+    },
+    {
+      "case": "Luis Valdés / Luis valdes",
+      "canonicalTarget": "Luis Valdés",
+      "status": "CONFIRMED",
+      "confidence": 1.0,
+      "recommendation": "Standard diacritic/case variation automatically resolved safely."
+    },
+    {
+      "case": "Miguel DR / Miguel de Rodrigo / Miguel Rodrigo",
+      "canonicalTarget": "Miguel de Rodrigo",
+      "status": "PROBABLE",
+      "confidence": 0.8,
+      "recommendation": "Abbreviation 'DR' requires administrator confirmation before merging."
+    },
+    {
+      "case": "Gonzalo López / González López",
+      "canonicalTarget": "KEEP_SEPARATE",
+      "status": "UNRESOLVED",
+      "confidence": 0.4,
+      "recommendation": "Different first/last names (Gonzalo vs González). Must remain separate players."
+    },
+    {
+      "case": "Pablo Gascon / Pablo Gascón",
+      "canonicalTarget": "Pablo Gascon",
+      "status": "CONFIRMED",
+      "confidence": 1.0,
+      "recommendation": "Accent mark variation on 'ó' confirmed as single canonical identity."
+    },
+    {
+      "case": "Lucas Rebellon / Lucas Rebellón",
+      "canonicalTarget": "Lucas Rebellon",
+      "status": "CONFIRMED",
+      "confidence": 1.0,
+      "recommendation": "Accent mark variation on 'ó' confirmed as single canonical identity."
+    },
+    {
+      "case": "Sergio Rebellon / Sergio Rebellón",
+      "canonicalTarget": "Sergio Rebellón",
+      "status": "CONFIRMED",
+      "confidence": 1.0,
+      "recommendation": "Accent mark variation on 'ó' confirmed as single canonical identity."
+    },
+    {
+      "case": "Ivan / Iván Horcajada",
+      "canonicalTarget": "Ivan Horcajada",
+      "status": "CONFIRMED",
+      "confidence": 1.0,
+      "recommendation": "Accent mark variation on 'á' confirmed as single canonical identity."
+    }
+  ],
+  "players": [
+    {
+      "canonicalName": "Pablo Gascon",
+      "aliases": ["Pablo Gascon (10)", "Pablo Gascon", "Pablo Gascón"],
+      "occurrences": {
+        "2024": { "group": "A", "matches": 6, "sourceSeed": 10 },
+        "2025": { "group": "A", "matches": 7 },
+        "2026": { "group": "A", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Lucas Rebellon",
+      "aliases": ["Lucas Rebellon", "Lucas Rebellón"],
+      "occurrences": {
+        "2024": { "group": "A", "matches": 6 },
+        "2025": { "group": "A", "matches": 7 },
+        "2026": { "group": "A", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Xabier Barrero",
+      "aliases": ["Xabier Barrero"],
+      "occurrences": {
+        "2024": { "group": "A", "matches": 6 },
+        "2025": { "group": "A", "matches": 7 },
+        "2026": { "group": "A", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Jorge Clemente",
+      "aliases": ["Jorge Clemente (7)", "Jorge Clemente"],
+      "occurrences": {
+        "2024": { "group": "A", "matches": 6, "sourceSeed": 7 },
+        "2025": { "group": "A", "matches": 7 },
+        "2026": { "group": "D", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "José Olalla",
+      "aliases": ["José Olalla (6)", "José Olalla", "Jose Olalla"],
+      "occurrences": {
+        "2024": { "group": "A", "matches": 6, "sourceSeed": 6 },
+        "2025": { "group": "C", "matches": 6 },
+        "2026": { "group": "C", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Chamorro",
+      "aliases": ["Chamorro"],
+      "occurrences": {
+        "2024": { "group": "A", "matches": 6 },
+        "2025": { "group": "A", "matches": 7 },
+        "2026": { "group": "A", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Lucia Marin",
+      "aliases": ["Lucia Marin", "Lucía Marín"],
+      "occurrences": {
+        "2024": { "group": "A", "matches": 6 },
+        "2025": { "group": "A", "matches": 7 },
+        "2026": { "group": "A", "matches": 4, "missingMatches": 1 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Josechu",
+      "aliases": ["Josechu"],
+      "occurrences": {
+        "2024": { "group": "B", "matches": 6 },
+        "2025": { "group": "A", "matches": 7 },
+        "2026": { "group": "D", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Jorge de la Herran",
+      "aliases": ["Jorge de la Herran", "Jorge de la Herrán"],
+      "occurrences": {
+        "2024": { "group": "B", "matches": 6 },
+        "2025": { "group": "C", "matches": 6 },
+        "2026": { "group": "C", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Pablo Olalla",
+      "aliases": ["Pablo Olalla"],
+      "occurrences": {
+        "2024": { "group": "B", "matches": 6 },
+        "2025": { "group": "B", "matches": 6 },
+        "2026": { "group": "B", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Rick",
+      "aliases": ["Rick"],
+      "occurrences": {
+        "2024": { "group": "B", "matches": 6 },
+        "2025": { "group": "B", "matches": 6 },
+        "2026": { "group": "B", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Pablo Escudero",
+      "aliases": ["Pablo Escudero"],
+      "occurrences": {
+        "2024": { "group": "B", "matches": 6 },
+        "2025": { "group": "B", "matches": 6 },
+        "2026": { "group": "B", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Jeipi",
+      "aliases": ["Jeipi"],
+      "occurrences": {
+        "2024": { "group": "B", "matches": 6 },
+        "2025": { "group": "B", "matches": 6 },
+        "2026": { "group": "B", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Diego Escudero",
+      "aliases": ["Diego Escudero"],
+      "occurrences": {
+        "2024": { "group": "B", "matches": 6 },
+        "2025": { "group": "B", "matches": 6 },
+        "2026": { "group": "C", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Sergio Rebellón",
+      "aliases": ["Sergio Rebellón", "Sergio Rebellon"],
+      "occurrences": {
+        "2024": { "group": "C", "matches": 6 },
+        "2025": { "group": "B", "matches": 6 },
+        "2026": { "group": "B", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Carlos Rebellón",
+      "aliases": ["Carlos Rebellón", "Carlos Rebellon"],
+      "occurrences": {
+        "2024": { "group": "C", "matches": 6 },
+        "2025": { "group": "B", "matches": 6 },
+        "2026": { "group": "B", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Héctor Horcajada",
+      "aliases": ["Héctor Horcajada (8) (invitation pending)", "Héctor Horcajada", "Hector Horcajada"],
+      "occurrences": {
+        "2024": { "group": "C", "matches": 6, "sourceSeed": 8, "sourceStatus": "invitation_pending" },
+        "2025": { "group": "C", "matches": 6 },
+        "2026": { "group": "C", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Pabis",
+      "aliases": ["Pabis"],
+      "occurrences": {
+        "2024": { "group": "C", "matches": 6 },
+        "2025": { "group": "C", "matches": 6 },
+        "2026": { "group": "C", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Ivan Horcajada",
+      "aliases": ["Ivan Horcajada", "Iván Horcajada"],
+      "occurrences": {
+        "2024": { "group": "C", "matches": 6 },
+        "2025": { "group": "C", "matches": 6 },
+        "2026": { "group": "C", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Carlos Ross",
+      "aliases": ["Carlos Ross"],
+      "occurrences": {
+        "2024": { "group": "C", "matches": 6 },
+        "2025": { "group": "A", "matches": 7 },
+        "2026": { "group": "A", "matches": 4, "missingMatches": 1 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Gonzalo Peñalver",
+      "aliases": ["Gonzalo Peñalver", "Gonzalo Penalver"],
+      "occurrences": {
+        "2024": { "group": "C", "matches": 6 },
+        "2025": { "group": "C", "matches": 6 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Fernando Alvarez",
+      "aliases": ["Fernando Alvarez", "Fernando Álvarez"],
+      "occurrences": {
+        "2025": { "group": "C", "matches": 6 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Alvaro Peña",
+      "aliases": ["Alvaro Peña", "Álvaro Peña"],
+      "occurrences": {
+        "2025": { "group": "D", "matches": 6 },
+        "2026": { "group": "D", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Jaime Martin",
+      "aliases": ["Jaime Martin", "Jaime Martín"],
+      "occurrences": {
+        "2025": { "group": "D", "matches": 6 },
+        "2026": { "group": "D", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "David Ruiz",
+      "aliases": ["David Ruiz"],
+      "occurrences": {
+        "2025": { "group": "D", "matches": 6 },
+        "2026": { "group": "D", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Miguel Fernandez",
+      "aliases": ["Miguel Fernandez", "Miguel Fernández"],
+      "occurrences": {
+        "2025": { "group": "D", "matches": 6 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Ignacio Lopez",
+      "aliases": ["Ignacio Lopez", "Ignacio López"],
+      "occurrences": {
+        "2025": { "group": "D", "matches": 6 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Victor Gomez",
+      "aliases": ["Victor Gomez", "Víctor Gómez"],
+      "occurrences": {
+        "2025": { "group": "D", "matches": 6 },
+        "2026": { "group": "D", "matches": 5 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    },
+    {
+      "canonicalName": "Raul Sanchez",
+      "aliases": ["Raul Sanchez", "Raúl Sánchez"],
+      "occurrences": {
+        "2025": { "group": "D", "matches": 6 }
+      },
+      "resolutionStatus": "CONFIRMED"
+    }
+  ]
+}

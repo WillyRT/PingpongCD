@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0a0f;
+  --foreground: #e8e8ed;
+  --card: #121218;
+  --card-foreground: #e8e8ed;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #1e1e2a;
+  --secondary-foreground: #a1a1b5;
+  --accent: #10b981;
+  --accent-foreground: #ffffff;
+  --muted: #1a1a24;
+  --muted-foreground: #71717a;
+  --border: #27272f;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --warning: #f59e0b;
+  --ring: #3b82f6;
+  --radius: 0.75rem;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Utility classes */
+.gradient-primary {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+}
+
+.gradient-accent {
+  background: linear-gradient(135deg, #10b981, #3b82f6);
+}
+
+.glass {
+  background: rgba(18, 18, 24, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Tournament bracket lines */
+.bracket-line {
+  border-color: var(--border);
+}
+
+/* Score input styling */
+.score-input {
+  font-size: 2.5rem;
+  font-weight: 800;
+  text-align: center;
+  width: 5rem;
+  height: 5rem;
+  border-radius: var(--radius);
+  background: var(--secondary);
+  color: var(--foreground);
+  border: 2px solid var(--border);
+  transition: border-color 0.2s;
+}
+
+.score-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Animations */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes slide-up {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}

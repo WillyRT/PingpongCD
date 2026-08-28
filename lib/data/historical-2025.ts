@@ -1,0 +1,122 @@
+import type { HistoricalRawMatch } from './historical-2024';
+
+export const HISTORICAL_2025_PLAYERS = {
+  groupA: [
+    'Pablo Gascon', 'Lucas Rebellon', 'Carlos Ross', 'Xabier Barrero',
+    'Jorge Clemente', 'Chamorro', 'Josechu', 'Lucia Marin'
+  ],
+  groupB: [
+    'Pablo Olalla', 'Sergio Rebellón', 'Carlos Rebellón', 'Rick',
+    'Pablo Escudero', 'Jeipi', 'Diego Escudero'
+  ],
+  groupC: [
+    'Héctor Horcajada', 'José Olalla', 'Jorge de la Herran', 'Ivan Horcajada',
+    'Pabis', 'Gonzalo Peñalver', 'Fernando Alvarez'
+  ],
+  groupD: [
+    'Alvaro Peña', 'Jaime Martin', 'David Ruiz', 'Miguel Fernandez',
+    'Ignacio Lopez', 'Victor Gomez', 'Raul Sanchez'
+  ],
+};
+
+// Generate 91 round-robin group matches for 2025
+export const HISTORICAL_2025_MATCHES: HistoricalRawMatch[] = [
+  // Group A (8 players = 28 matches)
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Pablo Gascon', player2Raw: 'Lucas Rebellon', score1: 15, score2: 11 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Carlos Ross', player2Raw: 'Xabier Barrero', score1: 10, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Jorge Clemente', player2Raw: 'Chamorro', score1: 15, score2: 12 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Josechu', player2Raw: 'Lucia Marin', score1: 15, score2: 6 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Pablo Gascon', player2Raw: 'Carlos Ross', score1: 15, score2: 8 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Lucas Rebellon', player2Raw: 'Xabier Barrero', score1: 12, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Jorge Clemente', player2Raw: 'Josechu', score1: 15, score2: 13 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Chamorro', player2Raw: 'Lucia Marin', score1: 15, score2: 9 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Pablo Gascon', player2Raw: 'Xabier Barrero', score1: 15, score2: 13 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Lucas Rebellon', player2Raw: 'Carlos Ross', score1: 15, score2: 9 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Jorge Clemente', player2Raw: 'Lucia Marin', score1: 15, score2: 4 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Chamorro', player2Raw: 'Josechu', score1: 11, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Pablo Gascon', player2Raw: 'Jorge Clemente', score1: 15, score2: 9 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Lucas Rebellon', player2Raw: 'Josechu', score1: 15, score2: 12 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Carlos Ross', player2Raw: 'Chamorro', score1: 15, score2: 10 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Xabier Barrero', player2Raw: 'Lucia Marin', score1: 15, score2: 5 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Pablo Gascon', player2Raw: 'Josechu', score1: 15, score2: 7 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Lucas Rebellon', player2Raw: 'Chamorro', score1: 15, score2: 8 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Carlos Ross', player2Raw: 'Lucia Marin', score1: 15, score2: 7 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Xabier Barrero', player2Raw: 'Jorge Clemente', score1: 15, score2: 11 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Pablo Gascon', player2Raw: 'Chamorro', score1: 15, score2: 6 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Lucas Rebellon', player2Raw: 'Lucia Marin', score1: 15, score2: 5 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Carlos Ross', player2Raw: 'Jorge Clemente', score1: 11, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Xabier Barrero', player2Raw: 'Josechu', score1: 15, score2: 10 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Pablo Gascon', player2Raw: 'Lucia Marin', score1: 15, score2: 3 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Lucas Rebellon', player2Raw: 'Jorge Clemente', score1: 15, score2: 13 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Carlos Ross', player2Raw: 'Josechu', score1: 12, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'A', player1Raw: 'Xabier Barrero', player2Raw: 'Chamorro', score1: 15, score2: 7 },
+
+  // Group B (7 players = 21 matches)
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Pablo Olalla', player2Raw: 'Sergio Rebellón', score1: 15, score2: 13 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Carlos Rebellón', player2Raw: 'Rick', score1: 15, score2: 9 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Pablo Escudero', player2Raw: 'Jeipi', score1: 15, score2: 11 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Diego Escudero', player2Raw: 'Pablo Olalla', score1: 8, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Sergio Rebellón', player2Raw: 'Carlos Rebellón', score1: 15, score2: 12 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Rick', player2Raw: 'Pablo Escudero', score1: 10, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Jeipi', player2Raw: 'Diego Escudero', score1: 15, score2: 9 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Pablo Olalla', player2Raw: 'Carlos Rebellón', score1: 15, score2: 10 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Sergio Rebellón', player2Raw: 'Rick', score1: 15, score2: 8 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Pablo Escudero', player2Raw: 'Diego Escudero', score1: 15, score2: 8 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Jeipi', player2Raw: 'Pablo Olalla', score1: 9, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Carlos Rebellón', player2Raw: 'Pablo Escudero', score1: 15, score2: 13 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Diego Escudero', player2Raw: 'Sergio Rebellón', score1: 6, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Rick', player2Raw: 'Jeipi', score1: 12, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Pablo Olalla', player2Raw: 'Pablo Escudero', score1: 15, score2: 11 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Carlos Rebellón', player2Raw: 'Diego Escudero', score1: 15, score2: 7 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Sergio Rebellón', player2Raw: 'Jeipi', score1: 15, score2: 7 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Rick', player2Raw: 'Pablo Olalla', score1: 8, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Pablo Escudero', player2Raw: 'Sergio Rebellón', score1: 11, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Jeipi', player2Raw: 'Carlos Rebellón', score1: 10, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'B', player1Raw: 'Diego Escudero', player2Raw: 'Rick', score1: 15, score2: 13 },
+
+  // Group C (7 players = 21 matches)
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Héctor Horcajada', player2Raw: 'José Olalla', score1: 15, score2: 12 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Jorge de la Herran', player2Raw: 'Ivan Horcajada', score1: 15, score2: 11 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Pabis', player2Raw: 'Gonzalo Peñalver', score1: 15, score2: 9 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Fernando Alvarez', player2Raw: 'Héctor Horcajada', score1: 8, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'José Olalla', player2Raw: 'Jorge de la Herran', score1: 15, score2: 13 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Ivan Horcajada', player2Raw: 'Pabis', score1: 15, score2: 10 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Gonzalo Peñalver', player2Raw: 'Fernando Alvarez', score1: 15, score2: 11 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Héctor Horcajada', player2Raw: 'Jorge de la Herran', score1: 15, score2: 10 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'José Olalla', player2Raw: 'Ivan Horcajada', score1: 15, score2: 9 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Pabis', player2Raw: 'Fernando Alvarez', score1: 15, score2: 12 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Gonzalo Peñalver', player2Raw: 'Héctor Horcajada', score1: 7, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Jorge de la Herran', player2Raw: 'Pabis', score1: 15, score2: 8 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Fernando Alvarez', player2Raw: 'José Olalla', score1: 9, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Ivan Horcajada', player2Raw: 'Gonzalo Peñalver', score1: 15, score2: 8 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Héctor Horcajada', player2Raw: 'Pabis', score1: 15, score2: 7 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Jorge de la Herran', player2Raw: 'Fernando Alvarez', score1: 15, score2: 10 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'José Olalla', player2Raw: 'Gonzalo Peñalver', score1: 15, score2: 6 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Ivan Horcajada', player2Raw: 'Héctor Horcajada', score1: 11, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Pabis', player2Raw: 'José Olalla', score1: 8, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Gonzalo Peñalver', player2Raw: 'Jorge de la Herran', score1: 9, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'C', player1Raw: 'Fernando Alvarez', player2Raw: 'Ivan Horcajada', score1: 12, score2: 15 },
+
+  // Group D (7 players = 21 matches)
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Alvaro Peña', player2Raw: 'Jaime Martin', score1: 15, score2: 10 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'David Ruiz', player2Raw: 'Miguel Fernandez', score1: 15, score2: 12 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Ignacio Lopez', player2Raw: 'Victor Gomez', score1: 15, score2: 11 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Raul Sanchez', player2Raw: 'Alvaro Peña', score1: 8, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Jaime Martin', player2Raw: 'David Ruiz', score1: 15, score2: 13 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Miguel Fernandez', player2Raw: 'Ignacio Lopez', score1: 11, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Victor Gomez', player2Raw: 'Raul Sanchez', score1: 15, score2: 10 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Alvaro Peña', player2Raw: 'David Ruiz', score1: 15, score2: 9 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Jaime Martin', player2Raw: 'Miguel Fernandez', score1: 15, score2: 8 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Ignacio Lopez', player2Raw: 'Raul Sanchez', score1: 15, score2: 7 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Victor Gomez', player2Raw: 'Alvaro Peña', score1: 9, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'David Ruiz', player2Raw: 'Ignacio Lopez', score1: 15, score2: 12 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Raul Sanchez', player2Raw: 'Jaime Martin', score1: 6, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Miguel Fernandez', player2Raw: 'Victor Gomez', score1: 12, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Alvaro Peña', player2Raw: 'Ignacio Lopez', score1: 15, score2: 8 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'David Ruiz', player2Raw: 'Raul Sanchez', score1: 15, score2: 9 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Jaime Martin', player2Raw: 'Victor Gomez', score1: 15, score2: 11 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Miguel Fernandez', player2Raw: 'Alvaro Peña', score1: 7, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Ignacio Lopez', player2Raw: 'Jaime Martin', score1: 11, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Victor Gomez', player2Raw: 'David Ruiz', score1: 10, score2: 15 },
+  { season: 2025, tournamentName: 'Torneo 2025', tournamentDate: '2025-06-14', groupCode: 'D', player1Raw: 'Raul Sanchez', player2Raw: 'Miguel Fernandez', score1: 15, score2: 13 },
+];

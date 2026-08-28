@@ -1,0 +1,757 @@
+{
+  "title": "TourneyMaster AI — Historical Rating Replay Report",
+  "generatedAt": "2026-08-24T10:45:27.722Z",
+  "periodModel": "Tournament-Based Periodic Updates (Glicko-2)",
+  "totalProcessedMatches": 213,
+  "missingMatches": 1,
+  "canonicalPlayersCount": 29,
+  "players": [
+    {
+      "id": "id-0ocsnl",
+      "canonicalName": "Pablo Gascon",
+      "currentRating": 2048.2,
+      "currentRD": 126.1,
+      "currentVolatility": 0.06,
+      "totalMatches": 18,
+      "seasons": {
+        "2024": {
+          "rating": 1880,
+          "rd": 181.3,
+          "volatility": 0.060001,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 2006.8,
+          "rd": 138,
+          "volatility": 0.060002,
+          "matches": 7
+        },
+        "2026": {
+          "rating": 2048.2,
+          "rd": 126.1,
+          "volatility": 0.06,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-n2a4z5",
+      "canonicalName": "Pablo Olalla",
+      "currentRating": 1986.7,
+      "currentRD": 119,
+      "currentVolatility": 0.060004,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1753.3,
+          "rd": 181.3,
+          "volatility": 0.059999,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1916.6,
+          "rd": 136.9,
+          "volatility": 0.060004,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1986.7,
+          "rd": 119,
+          "volatility": 0.060004,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-z5hunt",
+      "canonicalName": "Alvaro Peña",
+      "currentRating": 1985.4,
+      "currentRD": 139.8,
+      "currentVolatility": 0.06,
+      "totalMatches": 11,
+      "seasons": {
+        "2024": null,
+        "2025": {
+          "rating": 1880,
+          "rd": 181.3,
+          "volatility": 0.060001,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1985.4,
+          "rd": 139.8,
+          "volatility": 0.06,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-uiqnvg",
+      "canonicalName": "Sergio Rebellón",
+      "currentRating": 1892.2,
+      "currentRD": 121.7,
+      "currentVolatility": 0.059991,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1880,
+          "rd": 181.3,
+          "volatility": 0.060001,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1885.2,
+          "rd": 142.7,
+          "volatility": 0.059996,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1892.2,
+          "rd": 121.7,
+          "volatility": 0.059991,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-3ersw3",
+      "canonicalName": "Xabier Barrero",
+      "currentRating": 1856.5,
+      "currentRD": 118.7,
+      "currentVolatility": 0.059992,
+      "totalMatches": 18,
+      "seasons": {
+        "2024": {
+          "rating": 1753.3,
+          "rd": 181.3,
+          "volatility": 0.059999,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1851.2,
+          "rd": 132.4,
+          "volatility": 0.059997,
+          "matches": 7
+        },
+        "2026": {
+          "rating": 1856.5,
+          "rd": 118.7,
+          "volatility": 0.059992,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-6k1vh6",
+      "canonicalName": "Jaime Martin",
+      "currentRating": 1827.5,
+      "currentRD": 132.5,
+      "currentVolatility": 0.059995,
+      "totalMatches": 11,
+      "seasons": {
+        "2024": null,
+        "2025": {
+          "rating": 1753.3,
+          "rd": 181.3,
+          "volatility": 0.059999,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1827.5,
+          "rd": 132.5,
+          "volatility": 0.059995,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-0mok8c",
+      "canonicalName": "Héctor Horcajada",
+      "currentRating": 1813.3,
+      "currentRD": 119.1,
+      "currentVolatility": 0.059997,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1626.7,
+          "rd": 181.3,
+          "volatility": 0.059998,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1757.4,
+          "rd": 136.2,
+          "volatility": 0.059999,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1813.3,
+          "rd": 119.1,
+          "volatility": 0.059997,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-ov25xh",
+      "canonicalName": "Carlos Rebellón",
+      "currentRating": 1722.3,
+      "currentRD": 116,
+      "currentVolatility": 0.059988,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1753.3,
+          "rd": 181.3,
+          "volatility": 0.059999,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1729.5,
+          "rd": 136.9,
+          "volatility": 0.059994,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1722.3,
+          "rd": 116,
+          "volatility": 0.059988,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-bnbkua",
+      "canonicalName": "David Ruiz",
+      "currentRating": 1687.4,
+      "currentRD": 130.7,
+      "currentVolatility": 0.059993,
+      "totalMatches": 11,
+      "seasons": {
+        "2024": null,
+        "2025": {
+          "rating": 1626.7,
+          "rd": 181.3,
+          "volatility": 0.059998,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1687.4,
+          "rd": 130.7,
+          "volatility": 0.059993,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-qzyl66",
+      "canonicalName": "Lucas Rebellon",
+      "currentRating": 1650.1,
+      "currentRD": 116.3,
+      "currentVolatility": 0.059997,
+      "totalMatches": 18,
+      "seasons": {
+        "2024": {
+          "rating": 1500,
+          "rd": 181.3,
+          "volatility": 0.059998,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1659.1,
+          "rd": 130.6,
+          "volatility": 0.060002,
+          "matches": 7
+        },
+        "2026": {
+          "rating": 1650.1,
+          "rd": 116.3,
+          "volatility": 0.059997,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-wbfrs1",
+      "canonicalName": "Jorge Clemente",
+      "currentRating": 1607.2,
+      "currentRD": 107.9,
+      "currentVolatility": 0.059985,
+      "totalMatches": 18,
+      "seasons": {
+        "2024": {
+          "rating": 1626.7,
+          "rd": 181.3,
+          "volatility": 0.059998,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1625.3,
+          "rd": 130.2,
+          "volatility": 0.059992,
+          "matches": 7
+        },
+        "2026": {
+          "rating": 1607.2,
+          "rd": 107.9,
+          "volatility": 0.059985,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-qxko6o",
+      "canonicalName": "José Olalla",
+      "currentRating": 1606.6,
+      "currentRD": 108.6,
+      "currentVolatility": 0.060001,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1373.3,
+          "rd": 181.3,
+          "volatility": 0.059998,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1552.7,
+          "rd": 129.9,
+          "volatility": 0.060004,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1606.6,
+          "rd": 108.6,
+          "volatility": 0.060001,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-gra0p9",
+      "canonicalName": "Pablo Escudero",
+      "currentRating": 1559,
+      "currentRD": 116,
+      "currentVolatility": 0.059988,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1626.7,
+          "rd": 181.3,
+          "volatility": 0.059998,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1582,
+          "rd": 135.2,
+          "volatility": 0.059993,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1559,
+          "rd": 116,
+          "volatility": 0.059988,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-795mhb",
+      "canonicalName": "Josechu",
+      "currentRating": 1540.2,
+      "currentRD": 112,
+      "currentVolatility": 0.060021,
+      "totalMatches": 18,
+      "seasons": {
+        "2024": {
+          "rating": 1880,
+          "rd": 181.3,
+          "volatility": 0.060001,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1626.7,
+          "rd": 138,
+          "volatility": 0.06002,
+          "matches": 7
+        },
+        "2026": {
+          "rating": 1540.2,
+          "rd": 112,
+          "volatility": 0.060021,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-5ebt6p",
+      "canonicalName": "Jorge de la Herran",
+      "currentRating": 1524.2,
+      "currentRD": 108.5,
+      "currentVolatility": 0.059985,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1500,
+          "rd": 181.3,
+          "volatility": 0.059998,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1520.2,
+          "rd": 130.6,
+          "volatility": 0.059992,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1524.2,
+          "rd": 108.5,
+          "volatility": 0.059985,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-h664lv",
+      "canonicalName": "Ignacio Lopez",
+      "currentRating": 1500,
+      "currentRD": 181.3,
+      "currentVolatility": 0.059998,
+      "totalMatches": 6,
+      "seasons": {
+        "2024": null,
+        "2025": {
+          "rating": 1500,
+          "rd": 181.3,
+          "volatility": 0.059998,
+          "matches": 6
+        },
+        "2026": null
+      }
+    },
+    {
+      "id": "id-lfyp3v",
+      "canonicalName": "Ivan Horcajada",
+      "currentRating": 1411,
+      "currentRD": 108.1,
+      "currentVolatility": 0.059987,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1500,
+          "rd": 181.3,
+          "volatility": 0.059998,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1435.1,
+          "rd": 130.6,
+          "volatility": 0.059994,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1411,
+          "rd": 108.1,
+          "volatility": 0.059987,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-m6b7x4",
+      "canonicalName": "Carlos Ross",
+      "currentRating": 1352.8,
+      "currentRD": 121,
+      "currentVolatility": 0.059989,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1373.3,
+          "rd": 181.3,
+          "volatility": 0.059998,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1348.7,
+          "rd": 133.2,
+          "volatility": 0.059993,
+          "matches": 7
+        },
+        "2026": {
+          "rating": 1352.8,
+          "rd": 121,
+          "volatility": 0.059989,
+          "matches": 4
+        }
+      }
+    },
+    {
+      "id": "id-icno59",
+      "canonicalName": "Victor Gomez",
+      "currentRating": 1284,
+      "currentRD": 143.8,
+      "currentVolatility": 0.059996,
+      "totalMatches": 11,
+      "seasons": {
+        "2024": null,
+        "2025": {
+          "rating": 1373.3,
+          "rd": 181.3,
+          "volatility": 0.059998,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1284,
+          "rd": 143.8,
+          "volatility": 0.059996,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-0mw6c9",
+      "canonicalName": "Jeipi",
+      "currentRating": 1268.1,
+      "currentRD": 122.6,
+      "currentVolatility": 0.060001,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1373.3,
+          "rd": 181.3,
+          "volatility": 0.059998,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1374.5,
+          "rd": 138.8,
+          "volatility": 0.059993,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1268.1,
+          "rd": 122.6,
+          "volatility": 0.060001,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-ltk7hm",
+      "canonicalName": "Raul Sanchez",
+      "currentRating": 1246.7,
+      "currentRD": 181.3,
+      "currentVolatility": 0.059999,
+      "totalMatches": 6,
+      "seasons": {
+        "2024": null,
+        "2025": {
+          "rating": 1246.7,
+          "rd": 181.3,
+          "volatility": 0.059999,
+          "matches": 6
+        },
+        "2026": null
+      }
+    },
+    {
+      "id": "id-b8el9w",
+      "canonicalName": "Pabis",
+      "currentRating": 1230,
+      "currentRD": 113.4,
+      "currentVolatility": 0.059987,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1246.7,
+          "rd": 181.3,
+          "volatility": 0.059999,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1245.7,
+          "rd": 133.7,
+          "volatility": 0.059993,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1230,
+          "rd": 113.4,
+          "volatility": 0.059987,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-ck35jj",
+      "canonicalName": "Chamorro",
+      "currentRating": 1186.8,
+      "currentRD": 122.2,
+      "currentVolatility": 0.05999,
+      "totalMatches": 18,
+      "seasons": {
+        "2024": {
+          "rating": 1246.7,
+          "rd": 181.3,
+          "volatility": 0.059999,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1198.4,
+          "rd": 138.2,
+          "volatility": 0.059995,
+          "matches": 7
+        },
+        "2026": {
+          "rating": 1186.8,
+          "rd": 122.2,
+          "volatility": 0.05999,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-u9ek0t",
+      "canonicalName": "Diego Escudero",
+      "currentRating": 1133.5,
+      "currentRD": 120.1,
+      "currentVolatility": 0.059995,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1246.7,
+          "rd": 181.3,
+          "volatility": 0.059999,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1214.1,
+          "rd": 143.1,
+          "volatility": 0.059995,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1133.5,
+          "rd": 120.1,
+          "volatility": 0.059995,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-rdzvaj",
+      "canonicalName": "Miguel Fernandez",
+      "currentRating": 1120,
+      "currentRD": 181.3,
+      "currentVolatility": 0.060001,
+      "totalMatches": 6,
+      "seasons": {
+        "2024": null,
+        "2025": {
+          "rating": 1120,
+          "rd": 181.3,
+          "volatility": 0.060001,
+          "matches": 6
+        },
+        "2026": null
+      }
+    },
+    {
+      "id": "id-yl162q",
+      "canonicalName": "Rick",
+      "currentRating": 1115.6,
+      "currentRD": 141,
+      "currentVolatility": 0.060003,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1120,
+          "rd": 181.3,
+          "volatility": 0.060001,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1036.4,
+          "rd": 150,
+          "volatility": 0.06,
+          "matches": 6
+        },
+        "2026": {
+          "rating": 1115.6,
+          "rd": 141,
+          "volatility": 0.060003,
+          "matches": 5
+        }
+      }
+    },
+    {
+      "id": "id-j7184j",
+      "canonicalName": "Gonzalo Peñalver",
+      "currentRating": 1092.4,
+      "currentRD": 141.6,
+      "currentVolatility": 0.059996,
+      "totalMatches": 12,
+      "seasons": {
+        "2024": {
+          "rating": 1120,
+          "rd": 181.3,
+          "volatility": 0.060001,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1092.4,
+          "rd": 141.6,
+          "volatility": 0.059996,
+          "matches": 6
+        },
+        "2026": null
+      }
+    },
+    {
+      "id": "id-yp8v3c",
+      "canonicalName": "Fernando Alvarez",
+      "currentRating": 1033,
+      "currentRD": 160.2,
+      "currentVolatility": 0.060003,
+      "totalMatches": 6,
+      "seasons": {
+        "2024": null,
+        "2025": {
+          "rating": 1033,
+          "rd": 160.2,
+          "volatility": 0.060003,
+          "matches": 6
+        },
+        "2026": null
+      }
+    },
+    {
+      "id": "id-xpzkmn",
+      "canonicalName": "Lucia Marin",
+      "currentRating": 995.1,
+      "currentRD": 136.5,
+      "currentVolatility": 0.059998,
+      "totalMatches": 17,
+      "seasons": {
+        "2024": {
+          "rating": 1120,
+          "rd": 181.3,
+          "volatility": 0.060001,
+          "matches": 6
+        },
+        "2025": {
+          "rating": 1028.7,
+          "rd": 146.2,
+          "volatility": 0.06,
+          "matches": 7
+        },
+        "2026": {
+          "rating": 995.1,
+          "rd": 136.5,
+          "volatility": 0.059998,
+          "matches": 4
+        }
+      }
+    }
+  ]
+}

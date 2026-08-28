@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#8b5cf6" />
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="40" fill="#0a0a0f" />
+  <circle cx="96" cy="96" r="64" fill="url(#grad)" />
+  <!-- Table tennis paddle & ball symbol -->
+  <path d="M76 60 C92 48, 120 54, 128 72 C136 90, 124 116, 106 124 L120 148 C122 152, 118 156, 114 154 L98 142 L106 124 C90 128, 64 116, 60 96 C56 78, 64 68, 76 60 Z" fill="#ffffff" opacity="0.95"/>
+  <circle cx="140" cy="56" r="10" fill="#10b981" />
+</svg>
