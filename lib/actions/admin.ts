@@ -4,11 +4,17 @@ import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { resolveDisputeSchema } from '@/lib/validation/schemas';
 import { validateScoreForStage, determineWinner } from '@/lib/engine/scoring';
-import { SUPER_ADMIN_EMAIL } from '@/lib/engine/constants';
 import type { ActionResponse } from './tournament';
 
-/** Helper to verify if user has admin privileges (admin or super_admin) */
-export async function verifyAdminUser(): Promise<{ authorized: boolean; isSuperAdmin: boolean; userId?: string; error?: string }> {
+/** Helper to verify if user has admin privileges based solely on database RBAC */
+export async function verifyAdminUser(): Promise<{
+  authorized: boolean;
+  isSuperAdmin: boolean;
+  userId?: string;
+  role?: string;
+  adminStatus?: string;
+  error?: string;
+}> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -16,21 +22,19 @@ export async function verifyAdminUser(): Promise<{ authorized: boolean; isSuperA
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, email')
+    .select('role, admin_status')
     .eq('id', user.id)
     .single();
 
-  const isSuperAdmin =
-    profile?.role === 'super_admin' ||
-    user.email?.toLowerCase() === SUPER_ADMIN_EMAIL ||
-    profile?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
-
-  const isAdmin = isSuperAdmin || profile?.role === 'admin';
+  const isSuperAdmin = profile?.role === 'super_admin';
+  const isAdmin = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_status === 'approved');
 
   return {
     authorized: isAdmin,
     isSuperAdmin,
     userId: user.id,
+    role: profile?.role,
+    adminStatus: profile?.admin_status,
   };
 }
 

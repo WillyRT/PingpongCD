@@ -74,11 +74,10 @@ export function evaluateExpectedScore(
 }
 
 /**
- * Adjust player volatility when an upset occurs to accelerate rating convergence.
+ * @deprecated Removed artificial volatility inflation to preserve native Glicko-2 convergence.
  */
 export function adjustVolatilityForUpset(currentVolatility: number): number {
-  // Increase volatility by 20%, capped at 0.09
-  return Math.min(0.09, Number((currentVolatility * 1.2).toFixed(6)));
+  return currentVolatility;
 }
 
 /**

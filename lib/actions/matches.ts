@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { reportScoreSchema } from '@/lib/validation/schemas';
 import { validateScoreForStage, determineWinner } from '@/lib/engine/scoring';
 import { updateRatingsForMatch } from '@/lib/engine/rating';
-import { evaluateExpectedScore, adjustVolatilityForUpset } from '@/lib/engine/analytics';
+import { evaluateExpectedScore } from '@/lib/engine/analytics';
 import { isGroupComplete } from '@/lib/engine/tournament-state';
 import type { ActionResponse } from './tournament';
 
@@ -186,11 +186,6 @@ export async function confirmMatchAction(matchId: string): Promise<ActionRespons
           matchesPlayed: pLoser.matches_played,
         }
       );
-
-      // If upset occurred, boost winner volatility to accelerate convergence
-      if (evalResult.isUpset) {
-        updatedWinner.volatility = adjustVolatilityForUpset(updatedWinner.volatility);
-      }
 
       await supabase.from('profiles').update({
         rating: updatedWinner.rating,

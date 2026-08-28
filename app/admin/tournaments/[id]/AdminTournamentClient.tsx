@@ -416,8 +416,8 @@ export function AdminTournamentClient({
         {/* TAB 2: GROUPS, CBI & LIVE STANDINGS */}
         {activeTab === 'groups' && (
           <div className="space-y-6 animate-slide-up">
-            {/* CBI Visualizer Banner */}
-            {filteredGroups.length > 0 && (
+            {/* CBI Visualizer Banner (only visible for multi-group categories) */}
+            {filteredGroups.length > 1 && cbiResult.isVisible && (
               <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-amber-500/10 border border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="text-xs font-bold text-[var(--muted-foreground)] uppercase tracking-wider">
@@ -427,7 +427,8 @@ export function AdminTournamentClient({
                     {cbiResult.symmetryText}
                   </div>
                   <div className="text-xs text-[var(--muted-foreground)] mt-1">
-                    Diferencia máxima media entre grupos: {cbiResult.maxDifference} pts • Media global: {cbiResult.overallMeanRating}
+                    Diferencia máxima entre grupos: {cbiResult.maxDifference} pts • Media global: {cbiResult.overallMeanRating}
+                    {cbiResult.coefficientOfVariation > 0 && ` • CV: ${(cbiResult.coefficientOfVariation * 100).toFixed(1)}%`}
                   </div>
                 </div>
                 <div className="text-right">

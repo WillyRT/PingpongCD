@@ -5,7 +5,18 @@ import type { AgeCategory } from '../types/domain';
  * - 'sub14' (Junior): Players 14 years old or younger (<= 14)
  * - 'plus14' (Senior / Absoluta): Players older than 14 (> 14)
  */
-export function determineAgeCategory(birthDateOrAge: string | number | Date): AgeCategory {
+/**
+ * Determine official age category:
+ * - 'sub14' (Junior): Players 14 years old or younger (<= 14) at tournament cutoff date
+ * - 'plus14' (Senior / Absoluta): Players older than 14 (> 14) at tournament cutoff date
+ * 
+ * @param birthDateOrAge Birth date string, Date, or numeric age
+ * @param referenceDate Tournament start date or cutoff date (defaults to Dec 31 of tournament year or today)
+ */
+export function determineAgeCategory(
+  birthDateOrAge: string | number | Date,
+  referenceDate?: string | number | Date
+): AgeCategory {
   if (typeof birthDateOrAge === 'number') {
     return birthDateOrAge <= 14 ? 'sub14' : 'plus14';
   }
@@ -16,10 +27,12 @@ export function determineAgeCategory(birthDateOrAge: string | number | Date): Ag
     return 'plus14';
   }
 
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+  const ref = referenceDate ? new Date(referenceDate) : new Date();
+  const cutoff = isNaN(ref.getTime()) ? new Date() : ref;
+
+  let age = cutoff.getFullYear() - birth.getFullYear();
+  const m = cutoff.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && cutoff.getDate() < birth.getDate())) {
     age--;
   }
 

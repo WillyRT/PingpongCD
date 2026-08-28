@@ -52,27 +52,31 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Helper function: is_admin
+-- Helper function: is_admin (Safe SECURITY DEFINER with fixed search_path)
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role IN ('admin', 'super_admin')
+    WHERE id = auth.uid()
+      AND role IN ('admin', 'super_admin')
+      AND admin_status = 'approved'
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
--- Helper function: is_super_admin
+-- Helper function: is_super_admin (Safe SECURITY DEFINER with fixed search_path)
 CREATE OR REPLACE FUNCTION public.is_super_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role = 'super_admin'
+    WHERE id = auth.uid()
+      AND role = 'super_admin'
+      AND admin_status = 'approved'
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 -- Helper function: update_updated_at
 CREATE OR REPLACE FUNCTION public.update_updated_at()

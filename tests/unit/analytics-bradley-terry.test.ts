@@ -41,10 +41,9 @@ describe('Predictive Analytics & Bradley-Terry Model', () => {
     expect(res.upsetBadge).toBeUndefined();
   });
 
-  it('should boost volatility on upset to accelerate rating convergence', () => {
+  it('should preserve standard native Glicko-2 volatility without artificial inflation', () => {
     const initialVol = 0.06;
     const adjusted = adjustVolatilityForUpset(initialVol);
-    expect(adjusted).toBeGreaterThan(initialVol);
-    expect(adjusted).toBeCloseTo(0.072, 3);
+    expect(adjusted).toBe(initialVol);
   });
 });

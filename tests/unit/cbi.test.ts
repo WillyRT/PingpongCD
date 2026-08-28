@@ -12,6 +12,8 @@ describe('Competitive Balance Index (CBI)', () => {
     const res = calculateCompetitiveBalanceIndex(groups);
     expect(res.cbiPercentage).toBe(100);
     expect(res.symmetryText).toContain('100% simétrico');
+    expect(res.isVisible).toBe(false);
+    expect(res.coefficientOfVariation).toBe(0);
   });
 
   it('should return 100% for identical group averages', () => {
@@ -65,6 +67,8 @@ describe('Competitive Balance Index (CBI)', () => {
       },
     ];
     const res = calculateCompetitiveBalanceIndex(groups);
-    expect(res.cbiPercentage).toBeLessThan(60);
+    expect(res.cbiPercentage).toBeLessThan(80);
+    expect(res.coefficientOfVariation).toBeGreaterThan(0.2);
+    expect(res.isVisible).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 /**
  * Competitive Balance Index (CBI) for tournament group distribution.
- * Quantifies fairness and symmetry across groups formed by snake seeding.
+ * Quantifies fairness and symmetry across groups formed by snake seeding
+ * using the Coefficient of Variation (CV = sigma / mu).
  */
 
 export interface GroupPlayer {
@@ -21,6 +22,8 @@ export interface CBIResult {
   symmetryText: string;
   overallMeanRating: number;
   maxDifference: number;
+  coefficientOfVariation: number;
+  isVisible: boolean; // false when category has only 1 group
   groupStats: GroupBalanceStat[];
 }
 
@@ -29,13 +32,12 @@ export interface CBIResult {
  * 
  * Formula:
  * 1. For each group k, calculate mean rating R_k.
- * 2. Calculate overall mean rating across groups μ.
- * 3. Relative spread = (max(R_k) - min(R_k)) / μ.
- * 4. CBI = clamp(0, 100, round((1 - Relative spread) * 100)).
+ * 2. Calculate overall mean rating across groups mu = (1/K) * sum(R_k).
+ * 3. Calculate standard deviation sigma = sqrt((1/K) * sum((R_k - mu)^2)).
+ * 4. Coefficient of Variation CV = sigma / mu.
+ * 5. CBI = clamp(0, 100, round((1 - CV) * 100)).
  * 
- * Example:
- * If Group A mean = 1520 and Group B mean = 1480, μ = 1500:
- * Spread = 40 / 1500 = 0.0267 -> CBI = 97% -> "Equilibrio entre grupos: 97% simétrico".
+ * If groups.length <= 1, returns isVisible: false (CBI visual component should be hidden).
  */
 export function calculateCompetitiveBalanceIndex(
   groups: Array<{ groupIndex: number; groupCode?: string; players: GroupPlayer[] }>
@@ -50,6 +52,8 @@ export function calculateCompetitiveBalanceIndex(
       symmetryText: 'Equilibrio entre grupos: 100% simétrico (grupo único)',
       overallMeanRating: Math.round(mean * 10) / 10,
       maxDifference: 0,
+      coefficientOfVariation: 0,
+      isVisible: false, // Single group -> hide visual component
       groupStats: groups.map((g, idx) => ({
         groupIndex: g.groupIndex ?? idx,
         groupCode: g.groupCode || String.fromCharCode(65 + idx),
@@ -79,17 +83,23 @@ export function calculateCompetitiveBalanceIndex(
   const overallMean = means.reduce((sum, m) => sum + m, 0) / means.length;
   const maxDifference = Math.round((maxMean - minMean) * 10) / 10;
 
-  let cbiPercentage = 100;
-  if (overallMean > 0) {
-    const relativeSpread = (maxMean - minMean) / overallMean;
-    cbiPercentage = Math.max(0, Math.min(100, Math.round((1 - relativeSpread) * 100)));
-  }
+  // Calculate population standard deviation of group means
+  const variance = means.reduce((acc, m) => acc + Math.pow(m - overallMean, 2), 0) / means.length;
+  const stdDev = Math.sqrt(variance);
+
+  // Coefficient of Variation: CV = sigma / mu
+  const cv = overallMean > 0 ? stdDev / overallMean : 0;
+
+  // CBI = clamp(0, 100, round((1 - CV) * 100))
+  const cbiPercentage = Math.max(0, Math.min(100, Math.round((1 - cv) * 100)));
 
   return {
     cbiPercentage,
     symmetryText: `Equilibrio entre grupos: ${cbiPercentage}% simétrico`,
     overallMeanRating: Math.round(overallMean * 10) / 10,
     maxDifference,
+    coefficientOfVariation: Number(cv.toFixed(4)),
+    isVisible: true,
     groupStats,
   };
 }

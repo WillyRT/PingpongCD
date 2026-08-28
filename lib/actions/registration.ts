@@ -144,11 +144,12 @@ export async function publicJoinTournamentAction(formData: {
     }
 
     const st = (tournament.status || '').toLowerCase();
-    if (st === 'finished' || st === 'completed') {
-      return { success: false, error: 'Las inscripciones para este torneo están cerradas porque el torneo ha finalizado' };
+    if (st !== 'registration' && st !== 'draft' && st !== 'group_stage' && st !== 'ongoing') {
+      return { success: false, error: 'Las inscripciones para este torneo están cerradas' };
     }
 
-    const category = determineAgeCategory(formData.birthDateOrAge);
+    const referenceCutoff = (tournament as any).start_date || tournament.created_at;
+    const category = determineAgeCategory(formData.birthDateOrAge, referenceCutoff);
     const clampedLevel = Math.max(0, Math.min(10, Number(formData.declaredLevel) || 5));
 
     // Dynamic rating query for MIN and MAX
@@ -221,15 +222,27 @@ export async function publicJoinTournamentAction(formData: {
         .eq('id', targetUserId);
     }
 
-    // 2. Add to tournament_participants
+    // 2. Check if already registered in this tournament
+    const { data: existingParticipant } = await supabase
+      .from('tournament_participants')
+      .select('user_id')
+      .eq('tournament_id', tournament.id)
+      .eq('user_id', targetUserId)
+      .maybeSingle();
+
+    if (existingParticipant) {
+      return { success: false, error: 'Ya estás inscrito en este torneo con este correo electrónico.' };
+    }
+
+    // 3. Add to tournament_participants
     const { error: partErr } = await supabase
       .from('tournament_participants')
-      .upsert({
+      .insert({
         tournament_id: tournament.id,
         user_id: targetUserId,
         category,
         declared_level: clampedLevel,
-      }, { onConflict: 'tournament_id,user_id' });
+      });
 
     if (partErr) {
       return { success: false, error: `Error en la inscripción: ${partErr.message}` };

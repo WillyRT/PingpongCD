@@ -511,6 +511,20 @@ export async function finishTournamentAction(tournamentId: string): Promise<Acti
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { success: false, error: 'Unauthorized' };
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, admin_status')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const isAdmin =
+      profile?.role === 'super_admin' ||
+      (profile?.role === 'admin' && profile?.admin_status === 'approved');
+
+    if (!isAdmin) {
+      return { success: false, error: 'Solo administradores aprobados pueden finalizar torneos.' };
+    }
+
     const { data: tourney } = await supabase
       .from('tournaments')
       .select('*')
@@ -518,6 +532,30 @@ export async function finishTournamentAction(tournamentId: string): Promise<Acti
       .single();
 
     if (!tourney) return { success: false, error: 'Tournament not found' };
+
+    // Idempotent early exit if tournament is already finished
+    if (tourney.status === 'finished') {
+      return {
+        success: true,
+        data: { alreadyFinished: true, message: 'El torneo ya está finalizado. No se duplicaron snapshots ni ratings.' },
+      };
+    }
+
+    // Atomic status transition lock: only one execution can acquire the transition from non-finished
+    const { data: lockedTourney } = await supabase
+      .from('tournaments')
+      .update({ status: 'finished' })
+      .eq('id', tournamentId)
+      .neq('status', 'finished')
+      .select('id')
+      .maybeSingle();
+
+    if (!lockedTourney) {
+      return {
+        success: true,
+        data: { alreadyFinished: true, message: 'El torneo ya está finalizado. No se duplicaron snapshots ni ratings.' },
+      };
+    }
 
     const { data: matches } = await supabase
       .from('matches')

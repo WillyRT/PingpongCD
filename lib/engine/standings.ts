@@ -20,6 +20,7 @@ export interface Standing {
   pointsAgainst: number;
   pointsDiff: number;
   seed: number;
+  initialRating?: number;
   liveRating?: number;
 }
 
@@ -65,7 +66,13 @@ export function calculateLiveRatings(
 }
 
 /**
- * Calculate standings from confirmed matches using the strict 5-tier tiebreaker hierarchy.
+ * Calculate standings from confirmed matches using the strict 5-tier tiebreaker hierarchy:
+ * 1. Wins
+ * 2. Head-to-Head (direct match winner for 2-way, mini-league wins for 3+ way)
+ * 3. Overall Point Difference (PF - PA)
+ * 4. Point Difference in tied matches (mini-league diff)
+ * 5. Initial Tournament Glicko-2 Rating (eliminates circularity with live match results)
+ * (Deterministic fallback: tournament seed)
  */
 export function calculateStandings(
   playerIds: string[],
@@ -89,6 +96,7 @@ export function calculateStandings(
       pointsAgainst: 0,
       pointsDiff: 0,
       seed: seeds.get(playerId) ?? Infinity,
+      initialRating: initialRatings?.get(playerId) ?? 1500,
       liveRating: liveRatings.get(playerId) ?? 1500,
     });
   }
@@ -120,7 +128,7 @@ export function calculateStandings(
 
   // 2. Sort using the 5-tier hierarchy
   const entries = Array.from(statsMap.values());
-  const sorted = sortWithTiebreakers(entries, confirmedMatches, seeds, liveRatings);
+  const sorted = sortWithTiebreakers(entries, confirmedMatches, seeds, initialRatings, liveRatings);
 
   // 3. Assign positions
   return sorted.map((entry, index) => ({
@@ -133,7 +141,8 @@ function sortWithTiebreakers(
   entries: Omit<Standing, 'position'>[],
   matches: ConfirmedMatch[],
   seeds: Map<string, number>,
-  liveRatings: Map<string, number>
+  initialRatings?: Map<string, number>,
+  liveRatings?: Map<string, number>
 ): Omit<Standing, 'position'>[] {
   // 1. Group by wins DESC
   const sorted = [...entries].sort((a, b) => b.wins - a.wins);
@@ -154,17 +163,18 @@ function sortWithTiebreakers(
     if (tiedGroup.length === 1) {
       result.push(tiedGroup[0]!);
     } else if (tiedGroup.length === 2) {
-      // 2-way tie: evaluate Head-to-Head, then global diff, then tied diff, then Live ELO
+      // 2-way tie: evaluate Head-to-Head, then global diff, then tied diff, then Initial Glicko-2
       const resolved = resolveTwoWayTie(
         tiedGroup as [Omit<Standing, 'position'>, Omit<Standing, 'position'>],
         matches,
         seeds,
+        initialRatings,
         liveRatings
       );
       result.push(...resolved);
     } else {
       // 3+ way tie: mini-league
-      const resolved = resolveMiniLeague(tiedGroup, matches, seeds, liveRatings);
+      const resolved = resolveMiniLeague(tiedGroup, matches, seeds, initialRatings, liveRatings);
       result.push(...resolved);
     }
 
@@ -179,14 +189,15 @@ function sortWithTiebreakers(
  * 1. Head-to-head match winner
  * 2. Overall point difference (PF - PC)
  * 3. Point difference in H2H (tied diff)
- * 4. Dynamic Live ELO
- * 5. Seed
+ * 4. Initial Tournament Glicko-2 Rating (eliminating circularity with live match results)
+ * 5. Seed fallback
  */
 function resolveTwoWayTie(
   players: [Omit<Standing, 'position'>, Omit<Standing, 'position'>],
   matches: ConfirmedMatch[],
   seeds: Map<string, number>,
-  liveRatings: Map<string, number>
+  initialRatings?: Map<string, number>,
+  liveRatings?: Map<string, number>
 ): Omit<Standing, 'position'>[] {
   const [a, b] = players;
   const h2h = getHeadToHead(a.playerId, b.playerId, matches);
@@ -201,7 +212,7 @@ function resolveTwoWayTie(
     return a.pointsDiff > b.pointsDiff ? [a, b] : [b, a];
   }
 
-  // 4. Point difference between involved
+  // 4. Point difference between involved (tied diff)
   if (h2h) {
     const diffA = h2h.player1Id === a.playerId ? h2h.score1 - h2h.score2 : h2h.score2 - h2h.score1;
     const diffB = -diffA;
@@ -210,9 +221,16 @@ function resolveTwoWayTie(
     }
   }
 
-  // 5. Dynamic Live ELO
-  const eloA = liveRatings.get(a.playerId) ?? a.liveRating ?? 1500;
-  const eloB = liveRatings.get(b.playerId) ?? b.liveRating ?? 1500;
+  // 5. Initial Tournament Glicko-2 Rating (eliminates circularity)
+  const initA = initialRatings?.get(a.playerId) ?? a.initialRating;
+  const initB = initialRatings?.get(b.playerId) ?? b.initialRating;
+  if (initA !== undefined && initB !== undefined && initA !== initB) {
+    return initA > initB ? [a, b] : [b, a];
+  }
+
+  // Live ELO fallback
+  const eloA = liveRatings?.get(a.playerId) ?? a.liveRating ?? 1500;
+  const eloB = liveRatings?.get(b.playerId) ?? b.liveRating ?? 1500;
   if (eloA !== eloB) {
     return eloA > eloB ? [a, b] : [b, a];
   }
@@ -228,14 +246,15 @@ function resolveTwoWayTie(
  * 1. Wins in mini-league among tied players
  * 2. Overall point difference (Criterion 3)
  * 3. Point difference in mini-league between tied players (Criterion 4)
- * 4. Dynamic Live ELO (Criterion 5)
+ * 4. Initial Tournament Glicko-2 Rating (Criterion 5)
  * 5. Seed fallback
  */
 function resolveMiniLeague(
   players: Omit<Standing, 'position'>[],
   matches: ConfirmedMatch[],
   seeds: Map<string, number>,
-  liveRatings: Map<string, number>
+  initialRatings?: Map<string, number>,
+  liveRatings?: Map<string, number>
 ): Omit<Standing, 'position'>[] {
   const tiedIds = new Set(players.map((p) => p.playerId));
 
@@ -286,9 +305,16 @@ function resolveMiniLeague(
     // Overall points for
     if (a.pointsFor !== b.pointsFor) return b.pointsFor - a.pointsFor;
 
-    // 5. Dynamic Live ELO
-    const eloA = liveRatings.get(a.playerId) ?? a.liveRating ?? 1500;
-    const eloB = liveRatings.get(b.playerId) ?? b.liveRating ?? 1500;
+    // 5. Initial Tournament Glicko-2 Rating (eliminates circularity)
+    const initA = initialRatings?.get(a.playerId) ?? a.initialRating;
+    const initB = initialRatings?.get(b.playerId) ?? b.initialRating;
+    if (initA !== undefined && initB !== undefined && initA !== initB) {
+      return initB - initA;
+    }
+
+    // Dynamic Live ELO fallback
+    const eloA = liveRatings?.get(a.playerId) ?? a.liveRating ?? 1500;
+    const eloB = liveRatings?.get(b.playerId) ?? b.liveRating ?? 1500;
     if (eloA !== eloB) return eloB - eloA;
 
     // Seed fallback
