@@ -46,8 +46,16 @@ export async function updateSession(request: NextRequest) {
 
   // IMPORTANT: Use getUser() NOT getSession() for security
   const { data: { user } } = await supabase.auth.getUser();
+  const playerCookie = request.cookies.get('tourneymaster_player_id')?.value;
 
-  if (!user && (isProtectedPlayer || isProtectedAdmin)) {
+  if (isProtectedAdmin && !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    url.searchParams.set('redirectTo', request.nextUrl.pathname);
+    return NextResponse.redirect(url);
+  }
+
+  if (isProtectedPlayer && !user && !playerCookie) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('redirectTo', request.nextUrl.pathname);

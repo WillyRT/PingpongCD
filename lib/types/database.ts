@@ -123,6 +123,7 @@ export interface Database {
 // ========== PROFILES ==========
 export interface ProfileRow {
   id: string;
+  user_id?: string | null;
   name: string;
   email: string | null;
   phone: string | null;

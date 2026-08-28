@@ -1,6 +1,7 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { determineAgeCategory } from '@/lib/engine/categories';
 import { calculateProvisionalRating, FALLBACK_MIN_ELO, FALLBACK_MAX_ELO } from '@/lib/engine/rating';
@@ -14,6 +15,128 @@ export interface PlayerLookupResult {
   category?: 'sub14' | 'plus14';
 }
 
+export interface HistoricalPlayerSuggestion {
+  id: string;
+  name: string; // canonical name or matched alias
+  canonicalName: string;
+  matchedAlias?: string;
+  emailMasked: string;
+  emailFull?: string;
+  rating: number;
+  matchesPlayed: number;
+  category?: 'sub14' | 'plus14';
+}
+
+/**
+ * Partially obfuscates email for public search privacy (e.g. richy@hotmail.com -> r***y@hotmail.com).
+ */
+function obfuscateEmail(email?: string | null): string {
+  if (!email || !email.includes('@')) return '';
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return email;
+  if (local.length <= 2) {
+    return `${local[0]}***@${domain}`;
+  }
+  return `${local[0]}***${local[local.length - 1]}@${domain}`;
+}
+
+/**
+ * Public: Search historical players and aliases with their latest Glicko-2 ratings.
+ * Used by the Name autocomplete input in the registration form.
+ */
+export async function searchHistoricalPlayersAction(
+  query: string
+): Promise<ActionResponse<HistoricalPlayerSuggestion[]>> {
+  try {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length < 2) {
+      return { success: true, data: [] };
+    }
+
+    const admin = createAdminClient();
+
+    // 1. Search canonical players
+    const { data: players } = await admin
+      .from('players')
+      .select(`
+        id,
+        canonical_name,
+        email,
+        category,
+        rating_states:rating_states(rating, rating_deviation, matches_played)
+      `)
+      .ilike('canonical_name', `%${trimmed}%`)
+      .limit(6);
+
+    // 2. Search aliases
+    const { data: aliases } = await admin
+      .from('player_aliases')
+      .select(`
+        alias,
+        players:player_id (
+          id,
+          canonical_name,
+          email,
+          category,
+          rating_states:rating_states(rating, rating_deviation, matches_played)
+        )
+      `)
+      .ilike('alias', `%${trimmed}%`)
+      .limit(6);
+
+    const map = new Map<string, HistoricalPlayerSuggestion>();
+
+    if (players) {
+      for (const p of players) {
+        const rs = Array.isArray(p.rating_states) ? p.rating_states[0] : p.rating_states;
+        const rating = rs?.rating ? Math.round(rs.rating) : 1500;
+        const matchesPlayed = rs?.matches_played ?? 0;
+        map.set(p.id, {
+          id: p.id,
+          name: p.canonical_name,
+          canonicalName: p.canonical_name,
+          emailMasked: obfuscateEmail(p.email),
+          emailFull: p.email ?? undefined,
+          rating,
+          matchesPlayed,
+          category: p.category as any,
+        });
+      }
+    }
+
+    if (aliases) {
+      for (const a of aliases) {
+        const p = a.players as any;
+        if (!p || map.has(p.id)) continue;
+        const rs = Array.isArray(p.rating_states) ? p.rating_states[0] : p.rating_states;
+        const rating = rs?.rating ? Math.round(rs.rating) : 1500;
+        const matchesPlayed = rs?.matches_played ?? 0;
+        map.set(p.id, {
+          id: p.id,
+          name: a.alias,
+          canonicalName: p.canonical_name,
+          matchedAlias: a.alias,
+          emailMasked: obfuscateEmail(p.email),
+          emailFull: p.email ?? undefined,
+          rating,
+          matchesPlayed,
+          category: p.category as any,
+        });
+      }
+    }
+
+    return {
+      success: true,
+      data: Array.from(map.values()),
+    };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Error buscando jugadores históricos',
+    };
+  }
+}
+
 /**
  * Public: Lookup player profile and historical rating by email.
  * Used by the /join/[tournamentId] form for autocompletion.
@@ -25,10 +148,10 @@ export async function lookupPlayerByEmailAction(email: string): Promise<ActionRe
       return { success: true, data: { found: false } };
     }
 
-    const supabase = await createClient();
+    const admin = createAdminClient();
 
     // 1. Check profiles
-    const { data: profile } = await supabase
+    const { data: profile } = await admin
       .from('profiles')
       .select('id, name, rating, rating_deviation, category')
       .ilike('email', trimmed)
@@ -48,14 +171,14 @@ export async function lookupPlayerByEmailAction(email: string): Promise<ActionRe
     }
 
     // 2. Check canonical players
-    const { data: canonical } = await supabase
+    const { data: canonical } = await admin
       .from('players')
-      .select('id, canonical_name')
+      .select('id, canonical_name, category')
       .ilike('canonical_name', trimmed.split('@')[0] || '')
       .maybeSingle();
 
     if (canonical) {
-      const { data: ratingState } = await supabase
+      const { data: ratingState } = await admin
         .from('rating_states')
         .select('rating, rating_deviation')
         .eq('player_id', canonical.id)
@@ -68,6 +191,7 @@ export async function lookupPlayerByEmailAction(email: string): Promise<ActionRe
           name: canonical.canonical_name,
           rating: ratingState ? Math.round(ratingState.rating) : 1500,
           ratingDeviation: ratingState ? Math.round(ratingState.rating_deviation) : 350,
+          category: canonical.category as any,
         },
       };
     }
@@ -79,7 +203,8 @@ export async function lookupPlayerByEmailAction(email: string): Promise<ActionRe
 }
 
 /**
- * Public: Join a tournament with profile details (email, nickname, age/birthdate, declaredLevel).
+ * Public: Join a tournament with profile details.
+ * Decoupled from auth.users, assigns Glicko-2 ratings, and issues secure session cookie.
  */
 export async function publicJoinTournamentAction(formData: {
   tournamentIdOrSlug: string;
@@ -87,9 +212,11 @@ export async function publicJoinTournamentAction(formData: {
   name: string;
   birthDateOrAge: string | number;
   declaredLevel: number;
+  historicalPlayerId?: string;
+  historicalRating?: number;
 }): Promise<ActionResponse<{ participantId: string; category: string; rating: number }>> {
   try {
-    const supabase = await createClient();
+    const admin = createAdminClient();
 
     // 1. Resolve tournament safely (dual lookup: UUID or slug)
     const rawParam = decodeURIComponent(formData.tournamentIdOrSlug).trim();
@@ -97,7 +224,7 @@ export async function publicJoinTournamentAction(formData: {
     let tournament = null;
 
     if (UUID_REGEX.test(rawParam)) {
-      const { data } = await supabase
+      const { data } = await admin
         .from('tournaments')
         .select('*')
         .eq('id', rawParam)
@@ -106,7 +233,7 @@ export async function publicJoinTournamentAction(formData: {
     }
 
     if (!tournament) {
-      const { data: bySlug } = await supabase
+      const { data: bySlug } = await admin
         .from('tournaments')
         .select('*')
         .eq('slug', rawParam)
@@ -121,7 +248,7 @@ export async function publicJoinTournamentAction(formData: {
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/^-+|-+$/g, '');
 
-        const { data: byNorm } = await supabase
+        const { data: byNorm } = await admin
           .from('tournaments')
           .select('*')
           .eq('slug', normalizedSlug)
@@ -130,7 +257,7 @@ export async function publicJoinTournamentAction(formData: {
       }
 
       if (!tournament) {
-        const { data: byIlike } = await supabase
+        const { data: byIlike } = await admin
           .from('tournaments')
           .select('*')
           .ilike('slug', rawParam)
@@ -152,15 +279,15 @@ export async function publicJoinTournamentAction(formData: {
     const category = determineAgeCategory(formData.birthDateOrAge, referenceCutoff);
     const clampedLevel = Math.max(0, Math.min(10, Number(formData.declaredLevel) || 5));
 
-    // Dynamic rating query for MIN and MAX
-    const { data: minState } = await supabase
+    // Dynamic rating query for MIN and MAX bounds
+    const { data: minState } = await admin
       .from('rating_states')
       .select('rating')
       .order('rating', { ascending: true })
       .limit(1)
       .maybeSingle();
 
-    const { data: maxState } = await supabase
+    const { data: maxState } = await admin
       .from('rating_states')
       .select('rating')
       .order('rating', { ascending: false })
@@ -170,17 +297,20 @@ export async function publicJoinTournamentAction(formData: {
     const minElo = minState?.rating ?? FALLBACK_MIN_ELO;
     const maxElo = maxState?.rating ?? FALLBACK_MAX_ELO;
 
-    // Check if user is currently authenticated
-    const { data: { user } } = await supabase.auth.getUser();
+    // Check if user is currently authenticated via Supabase Auth
+    const userClient = await createClient();
+    const { data: { user } } = await userClient.auth.getUser();
 
+    const cleanEmail = formData.email.trim().toLowerCase();
+
+    // Check if profile exists by email or auth user id
     let targetUserId = user?.id;
 
-    // If not authenticated, find existing profile or create a mock/placeholder profile
     if (!targetUserId) {
-      const { data: existingProfile } = await supabase
+      const { data: existingProfile } = await admin
         .from('profiles')
         .select('id, rating')
-        .ilike('email', formData.email.trim().toLowerCase())
+        .ilike('email', cleanEmail)
         .maybeSingle();
 
       if (existingProfile) {
@@ -188,23 +318,57 @@ export async function publicJoinTournamentAction(formData: {
       }
     }
 
-    // Determine initial rating
-    const prov = calculateProvisionalRating(clampedLevel, minElo, maxElo);
-    const assignedRating = prov.rating;
+    // Determine initial rating:
+    // 1. If explicitly chosen from historical suggestion
+    // 2. Or matching historical canonical player
+    // 3. Or calculated from declared level
+    let assignedRating: number;
+    let initialRd = 350;
+    let initialVol = 0.06;
 
-    // If still no targetUserId, we generate a participant profile UUID
+    if (formData.historicalRating && formData.historicalRating > 0) {
+      assignedRating = formData.historicalRating;
+    } else {
+      // Check if canonical player exists with historical rating
+      const { data: canonical } = await admin
+        .from('players')
+        .select(`
+          id,
+          rating_states:rating_states(rating, rating_deviation, volatility)
+        `)
+        .or(`canonical_name.ilike.${formData.name.trim()},email.ilike.${cleanEmail}`)
+        .limit(1)
+        .maybeSingle();
+
+      const rs = canonical?.rating_states
+        ? (Array.isArray(canonical.rating_states) ? canonical.rating_states[0] : canonical.rating_states)
+        : null;
+
+      if (rs?.rating) {
+        assignedRating = Math.round(rs.rating);
+        initialRd = Math.round(rs.rating_deviation ?? 350);
+        initialVol = rs.volatility ?? 0.06;
+      } else {
+        const prov = calculateProvisionalRating(clampedLevel, minElo, maxElo);
+        assignedRating = prov.rating;
+      }
+    }
+
+    // Create or update profile
     if (!targetUserId) {
       const newUserId = crypto.randomUUID();
-      const { error: profErr } = await supabase.from('profiles').insert({
+      const { error: profErr } = await admin.from('profiles').insert({
         id: newUserId,
+        user_id: user?.id ?? null,
         name: formData.name.trim(),
-        email: formData.email.trim().toLowerCase(),
+        email: cleanEmail,
         role: 'player',
+        admin_status: 'none',
         declared_level: clampedLevel,
         category,
         rating: assignedRating,
-        rating_deviation: 350,
-        volatility: 0.06,
+        rating_deviation: initialRd,
+        volatility: initialVol,
       });
 
       if (profErr && profErr.code !== '23505') {
@@ -212,18 +376,18 @@ export async function publicJoinTournamentAction(formData: {
       }
       targetUserId = newUserId;
     } else {
-      // Update profile with category & declared level if missing
-      await supabase
+      await admin
         .from('profiles')
         .update({
           category,
           declared_level: clampedLevel,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', targetUserId);
     }
 
-    // 2. Check if already registered in this tournament
-    const { data: existingParticipant } = await supabase
+    // Check if player is already registered in this tournament
+    const { data: existingParticipant } = await admin
       .from('tournament_participants')
       .select('user_id')
       .eq('tournament_id', tournament.id)
@@ -234,8 +398,8 @@ export async function publicJoinTournamentAction(formData: {
       return { success: false, error: 'Ya estás inscrito en este torneo con este correo electrónico.' };
     }
 
-    // 3. Add to tournament_participants
-    const { error: partErr } = await supabase
+    // Insert into tournament_participants
+    const { error: partErr } = await admin
       .from('tournament_participants')
       .insert({
         tournament_id: tournament.id,
@@ -248,7 +412,24 @@ export async function publicJoinTournamentAction(formData: {
       return { success: false, error: `Error en la inscripción: ${partErr.message}` };
     }
 
-    await supabase.from('audit_logs').insert({
+    // Set persistent session cookies for the player
+    const cookieStore = await cookies();
+    cookieStore.set('tourneymaster_player_id', targetUserId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 60, // 60 days
+      path: '/',
+    });
+    cookieStore.set('tourneymaster_player_name', formData.name.trim(), {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 60,
+      path: '/',
+    });
+
+    await admin.from('audit_logs').insert({
       actor_id: targetUserId,
       action: 'public_join_tournament',
       entity_type: 'tournament_participants',
@@ -259,6 +440,7 @@ export async function publicJoinTournamentAction(formData: {
     revalidatePath(`/join/${formData.tournamentIdOrSlug}`);
     revalidatePath(`/t/${tournament.slug}`);
     revalidatePath(`/admin/tournaments/${tournament.id}`);
+    revalidatePath('/player');
 
     return {
       success: true,

@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 export async function createClient() {
@@ -31,4 +32,24 @@ export async function createClient() {
       },
     }
   );
+}
+
+/**
+ * Service role admin client that bypasses RLS for system operations
+ * (e.g. public participant creation, audit logging, ratings replay).
+ */
+export function createAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+  const serviceKey =
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    'placeholder-key';
+
+  return createSupabaseClient(supabaseUrl, serviceKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
 }

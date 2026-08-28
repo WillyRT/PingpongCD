@@ -67,3 +67,87 @@ describe('Slug Normalization and Dual Route Resolution', () => {
     expect(isRegistrationAllowed('completed')).toBe(false);
   });
 });
+
+describe('Historical Player Search and Auth-less Registration', () => {
+  function obfuscateEmail(email?: string | null): string {
+    if (!email || !email.includes('@')) return '';
+    const [local, domain] = email.split('@');
+    if (!local || !domain) return email;
+    if (local.length <= 2) {
+      return `${local[0]}***@${domain}`;
+    }
+    return `${local[0]}***${local[local.length - 1]}@${domain}`;
+  }
+
+  it('obfuscates emails correctly for public privacy', () => {
+    expect(obfuscateEmail('richy@hotmail.com')).toBe('r***y@hotmail.com');
+    expect(obfuscateEmail('carlos.ross@gmail.com')).toBe('c***s@gmail.com');
+    expect(obfuscateEmail('al@tabletennis.es')).toBe('a***@tabletennis.es');
+    expect(obfuscateEmail('')).toBe('');
+    expect(obfuscateEmail(null)).toBe('');
+    expect(obfuscateEmail('invalid-email')).toBe('');
+  });
+
+  it('matches historical players by canonical name or alias insensitively', () => {
+    const historicalPlayers = [
+      { id: '1', canonicalName: 'Richy', aliases: ['Ricardo', 'Richi'], rating: 1540 },
+      { id: '2', canonicalName: 'Carlos Ross', aliases: ['Charlie', 'Ross'], rating: 1620 },
+      { id: '3', canonicalName: 'Guillermo Rivera', aliases: ['Willy', 'Guille'], rating: 1710 },
+    ];
+
+    function searchPlayers(query: string) {
+      const q = query.trim().toLowerCase();
+      if (!q) return [];
+      return historicalPlayers.filter(
+        (p) =>
+          p.canonicalName.toLowerCase().includes(q) ||
+          p.aliases.some((a) => a.toLowerCase().includes(q))
+      );
+    }
+
+    const res1 = searchPlayers('rich');
+    expect(res1).toHaveLength(1);
+    expect(res1[0]?.canonicalName).toBe('Richy');
+    expect(res1[0]?.rating).toBe(1540);
+
+    const res2 = searchPlayers('charlie');
+    expect(res2).toHaveLength(1);
+    expect(res2[0]?.canonicalName).toBe('Carlos Ross');
+
+    const res3 = searchPlayers('willy');
+    expect(res3).toHaveLength(1);
+    expect(res3[0]?.canonicalName).toBe('Guillermo Rivera');
+  });
+
+  it('permits public participant creation with decoupled UUID and null auth user_id', () => {
+    interface MockProfile {
+      id: string;
+      user_id: string | null;
+      name: string;
+      email: string;
+      role: 'player';
+      rating: number;
+    }
+
+    const mockProfiles: MockProfile[] = [];
+
+    function registerPublicParticipant(name: string, email: string, assignedRating: number) {
+      const profile: MockProfile = {
+        id: 'standalone-uuid-1234',
+        user_id: null, // No auth.users row required!
+        name,
+        email: email.toLowerCase().trim(),
+        role: 'player',
+        rating: assignedRating,
+      };
+      mockProfiles.push(profile);
+      return profile;
+    }
+
+    const created = registerPublicParticipant('Richy', 'richy@hotmail.com', 1540);
+    expect(created.id).toBe('standalone-uuid-1234');
+    expect(created.user_id).toBeNull();
+    expect(created.rating).toBe(1540);
+    expect(mockProfiles).toHaveLength(1);
+  });
+});

@@ -11,7 +11,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- 1. PROFILES & USERS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   email TEXT,
   phone TEXT,
@@ -28,24 +29,41 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Auto-create profile on signup & designate superadmin for guillermoriveraterriza@gmail.com
+CREATE UNIQUE INDEX IF NOT EXISTS profiles_user_id_idx ON public.profiles(user_id) WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS profiles_email_lower_idx ON public.profiles(LOWER(email)) WHERE email IS NOT NULL AND email <> '';
+
+-- Auto-create/link profile on signup & designate superadmin for guillermoriveraterriza@gmail.com
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, name, email, role, admin_status)
-  VALUES (
-    NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
-    NEW.email,
-    CASE WHEN LOWER(NEW.email) = 'guillermoriveraterriza@gmail.com' THEN 'super_admin' ELSE 'player' END,
-    CASE WHEN LOWER(NEW.email) = 'guillermoriveraterriza@gmail.com' THEN 'approved' ELSE 'none' END
-  )
-  ON CONFLICT (id) DO UPDATE SET
-    role = CASE WHEN LOWER(EXCLUDED.email) = 'guillermoriveraterriza@gmail.com' THEN 'super_admin' ELSE public.profiles.role END,
-    admin_status = CASE WHEN LOWER(EXCLUDED.email) = 'guillermoriveraterriza@gmail.com' THEN 'approved' ELSE public.profiles.admin_status END;
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE LOWER(email) = LOWER(NEW.email)) THEN
+    UPDATE public.profiles
+    SET
+      user_id = NEW.id,
+      email = LOWER(NEW.email),
+      role = CASE WHEN LOWER(NEW.email) = 'guillermoriveraterriza@gmail.com' THEN 'super_admin' ELSE public.profiles.role END,
+      admin_status = CASE WHEN LOWER(NEW.email) = 'guillermoriveraterriza@gmail.com' THEN 'approved' ELSE public.profiles.admin_status END,
+      updated_at = now()
+    WHERE LOWER(email) = LOWER(NEW.email);
+  ELSE
+    INSERT INTO public.profiles (id, user_id, name, email, role, admin_status)
+    VALUES (
+      NEW.id,
+      NEW.id,
+      COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+      LOWER(NEW.email),
+      CASE WHEN LOWER(NEW.email) = 'guillermoriveraterriza@gmail.com' THEN 'super_admin' ELSE 'player' END,
+      CASE WHEN LOWER(NEW.email) = 'guillermoriveraterriza@gmail.com' THEN 'approved' ELSE 'none' END
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      user_id = EXCLUDED.user_id,
+      email = EXCLUDED.email,
+      role = CASE WHEN LOWER(EXCLUDED.email) = 'guillermoriveraterriza@gmail.com' THEN 'super_admin' ELSE public.profiles.role END,
+      admin_status = CASE WHEN LOWER(EXCLUDED.email) = 'guillermoriveraterriza@gmail.com' THEN 'approved' ELSE public.profiles.admin_status END;
+  END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -58,7 +76,7 @@ RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.profiles
-    WHERE id = auth.uid()
+    WHERE (user_id = auth.uid() OR id = auth.uid())
       AND role IN ('admin', 'super_admin')
       AND admin_status = 'approved'
   );
@@ -71,7 +89,7 @@ RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.profiles
-    WHERE id = auth.uid()
+    WHERE (user_id = auth.uid() OR id = auth.uid())
       AND role = 'super_admin'
       AND admin_status = 'approved'
   );

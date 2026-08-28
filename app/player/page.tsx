@@ -1,19 +1,25 @@
 import { createClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 
 export default async function PlayerDashboard() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const cookieStore = await cookies();
+  const cookiePlayerId = cookieStore.get('tourneymaster_player_id')?.value;
 
-  if (!user) redirect('/login');
+  const targetPlayerId = user?.id || cookiePlayerId;
+  if (!targetPlayerId) redirect('/login');
 
   // Fetch player profile
   const { data: profile } = await supabase
     .from('profiles')
     .select('*')
-    .eq('id', user.id)
-    .single();
+    .or(`id.eq.${targetPlayerId},user_id.eq.${targetPlayerId}`)
+    .maybeSingle();
+
+  if (!profile) redirect('/login');
 
   // Fetch player's tournament participations
   const { data: participations } = await supabase
@@ -22,13 +28,13 @@ export default async function PlayerDashboard() {
       *,
       tournaments:tournament_id (*)
     `)
-    .eq('user_id', user.id);
+    .eq('user_id', profile.id);
 
   // Fetch player's pending/submitted matches
   const { data: activeMatches } = await supabase
     .from('matches')
     .select('*, player1:player1_id (id, name), player2:player2_id (id, name)')
-    .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
+    .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
     .in('status', ['pending', 'submitted'])
     .order('created_at', { ascending: true })
     .limit(5);
@@ -39,9 +45,9 @@ export default async function PlayerDashboard() {
     const { data: linkedPlayer } = await supabase
       .from('players')
       .select('id')
-      .or(`user_id.eq.${user.id},canonical_name.ilike.${profile.name}`)
+      .or(`user_id.eq.${profile.id},canonical_name.ilike.${profile.name}`)
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (linkedPlayer) canonicalPlayerId = linkedPlayer.id;
   }
@@ -208,7 +214,7 @@ export default async function PlayerDashboard() {
                       Report Score
                     </Link>
                   )}
-                  {match.status === 'submitted' && match.reported_by !== user.id && (
+                  {match.status === 'submitted' && match.reported_by !== profile.id && (
                     <Link
                       href={`/player/report/${match.id}`}
                       className="px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-xs font-semibold"
