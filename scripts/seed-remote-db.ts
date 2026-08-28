@@ -126,12 +126,21 @@ async function seedRemote() {
   if (pErr) throw new Error(`Failed to upsert players: ${pErr.message}`);
   console.log(`✅ Upserted ${playerRows.length} canonical players.`);
 
-  // 2. Batch upsert aliases
-  const aliasRows = Array.from(aliasesMap.values()).map((a) => ({
-    player_id: a.playerId,
-    alias: a.normalizedAlias,
-    source_system: 'official_archive',
-  }));
+  // 2. Batch upsert aliases (deduplicated)
+  const uniqueAliases = new Map<string, { player_id: string; alias: string; normalized_alias: string; source_system: string }>();
+  for (const a of Array.from(aliasesMap.values())) {
+    const aliasStr = a.alias || a.normalizedAlias;
+    const key = `${aliasStr.toLowerCase().trim()}_official_archive`;
+    if (!uniqueAliases.has(key)) {
+      uniqueAliases.set(key, {
+        player_id: a.playerId,
+        alias: aliasStr,
+        normalized_alias: a.normalizedAlias || aliasStr.toLowerCase().trim(),
+        source_system: 'official_archive',
+      });
+    }
+  }
+  const aliasRows = Array.from(uniqueAliases.values());
   const { error: aErr } = await supabase.from('player_aliases').upsert(aliasRows, { onConflict: 'alias,source_system' });
   if (aErr) throw new Error(`Failed to upsert aliases: ${aErr.message}`);
   console.log(`✅ Upserted ${aliasRows.length} player aliases.`);
@@ -154,7 +163,7 @@ async function seedRemote() {
       id: g.id,
       historical_tournament_id: t.tournament.id,
       group_code: g.groupCode,
-      expected_matches: g.expectedMatches,
+      total_matches: g.expectedMatches,
     }))
   );
   const { error: gErr } = await supabase.from('historical_groups').upsert(allGroups, { onConflict: 'historical_tournament_id,group_code' });
@@ -166,7 +175,7 @@ async function seedRemote() {
     t.matches.map((m) => ({
       id: m.id,
       historical_tournament_id: t.tournament.id,
-      historical_group_id: m.historicalGroupId,
+      group_id: m.historicalGroupId,
       stage: m.stage,
       player1_id: m.player1Id,
       player2_id: m.player2Id,
@@ -174,8 +183,8 @@ async function seedRemote() {
       score_player2: m.scorePlayer2,
       winner_id: m.winnerId,
       status: m.status,
-      match_date: m.matchDate,
-      source_record: m.sourceRecord,
+      is_missing: m.status === 'missing',
+      played_at: m.matchDate,
     }))
   );
   const { error: mErr } = await supabase.from('historical_matches').upsert(allMatches, { onConflict: 'id' });
@@ -192,7 +201,7 @@ async function seedRemote() {
     rating_deviation: s.ratingDeviation,
     volatility: s.volatility,
     matches_played: s.matchesPlayed,
-    last_calculated_at: s.lastCalculatedAt,
+    last_played_at: s.lastCalculatedAt,
   }));
   const { error: rsErr } = await supabase.from('rating_states').upsert(ratingStateRows, { onConflict: 'player_id' });
   if (rsErr) throw new Error(`Failed to upsert rating states: ${rsErr.message}`);
@@ -204,63 +213,51 @@ async function seedRemote() {
   const snapshotRows = replay.snapshots.map((snap) => ({
     id: snap.id,
     player_id: snap.playerId,
-    rating_period_id: snap.ratingPeriodId,
-    period_type: snap.periodType,
+    historical_tournament_id: snap.ratingPeriodId,
     rating_before: snap.ratingBefore,
     rd_before: snap.rdBefore,
-    vol_before: snap.volBefore,
+    volatility_before: snap.volBefore,
     rating_after: snap.ratingAfter,
     rd_after: snap.rdAfter,
-    vol_after: snap.volAfter,
+    volatility_after: snap.volAfter,
     matches_in_period: snap.matchesInPeriod,
+    wins_in_period: 0,
   }));
   const { error: snapErr } = await supabase.from('rating_snapshots').insert(snapshotRows);
   if (snapErr) throw new Error(`Failed to insert snapshots: ${snapErr.message}`);
   console.log(`✅ Inserted ${snapshotRows.length} rating snapshots.`);
 
-  // 7. Seed / sync profiles for the 29 canonical players & Superadmin
-  console.log('Synchronizing player profiles with calculated ratings & Superadmin role...');
-  const profileRows = Array.from(playersMap.values()).map((p) => {
-    const rState = replay.ratingStates.get(p.id);
-    const isSuperAdminEmail = p.canonicalName.toLowerCase().includes('guillermo');
-    return {
-      id: p.id,
-      name: p.canonicalName,
-      email: isSuperAdminEmail ? SUPER_ADMIN_EMAIL : `${p.canonicalName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@tourneymaster.local`,
-      role: isSuperAdminEmail ? 'super_admin' : 'player',
-      admin_status: isSuperAdminEmail ? 'approved' : 'none',
-      category: 'plus14',
-      declared_level: 6.0,
-      rating: rState?.rating ?? 1500,
-      rating_deviation: rState?.ratingDeviation ?? 350,
-      volatility: rState?.volatility ?? 0.06,
-      matches_played: rState?.matchesPlayed ?? 0,
-    };
-  });
+  // 7. Ensure Superadmin auth user exists and profile is configured
+  console.log(`Configuring Superadmin profile for ${SUPER_ADMIN_EMAIL}...`);
+  try {
+    const { data: userList } = await supabase.auth.admin.listUsers();
+    let superAdminUser = userList?.users.find(u => u.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase());
+    if (!superAdminUser) {
+      const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
+        email: SUPER_ADMIN_EMAIL,
+        email_confirm: true,
+        user_metadata: { name: 'Guillermo Rivera' },
+      });
+      if (createErr) {
+        console.warn('Note creating superadmin auth user:', createErr.message);
+      } else {
+        superAdminUser = newUser.user;
+        console.log(`✅ Created Supabase Auth user for Superadmin: ${SUPER_ADMIN_EMAIL}`);
+      }
+    }
 
-  // Ensure guillermoriveraterriza@gmail.com is present as superadmin
-  const hasSuperAdmin = profileRows.some(p => p.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase());
-  if (!hasSuperAdmin) {
-    profileRows.push({
-      id: 'a0000000-0000-0000-0000-000000000001',
-      name: 'Guillermo Rivera',
-      email: SUPER_ADMIN_EMAIL,
-      role: 'super_admin',
-      admin_status: 'approved',
-      category: 'plus14',
-      declared_level: 8.5,
-      rating: 1800,
-      rating_deviation: 150,
-      volatility: 0.06,
-      matches_played: 20,
-    });
-  }
-
-  const { error: profErr } = await supabase.from('profiles').upsert(profileRows, { onConflict: 'id' });
-  if (profErr) {
-    console.warn(`Note on profiles upsert: ${profErr.message}`);
-  } else {
-    console.log(`✅ Upserted ${profileRows.length} player profiles with ratings and superadmin designation.`);
+    if (superAdminUser) {
+      const { error: updErr } = await supabase.from('profiles').update({
+        role: 'super_admin',
+        admin_status: 'approved',
+        category: 'plus14',
+        declared_level: 8.0,
+      }).eq('id', superAdminUser.id);
+      if (updErr) console.warn('Note updating superadmin profile:', updErr.message);
+      else console.log(`✅ Superadmin profile confirmed for ${SUPER_ADMIN_EMAIL} (role = 'super_admin', admin_status = 'approved')`);
+    }
+  } catch (authErr: any) {
+    console.warn('Auth admin note:', authErr.message);
   }
 
   console.log('------------------------------------------------');
