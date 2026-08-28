@@ -32,9 +32,9 @@ async function verifyAllTables() {
 
   for (const table of TABLES) {
     try {
-      const { data, error } = await supabase.from(table).select('*', { count: 'exact', head: true });
+      const { data, error } = await supabase.from(table).select('*').limit(1);
       if (error) {
-        console.log(`❌ Table '${table}': MISSING or Error (${error.message})`);
+        console.log(`❌ Table '${table}': MISSING (${error.message})`);
         missingCount++;
       } else {
         console.log(`✅ Table '${table}': OK`);

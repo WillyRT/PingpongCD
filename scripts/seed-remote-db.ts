@@ -11,6 +11,7 @@ import {
   HISTORICAL_2025_MATCHES,
   HISTORICAL_2026_MATCHES,
 } from '../lib/data';
+import { SUPER_ADMIN_EMAIL } from '../lib/engine/constants';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const secretKey = process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
@@ -216,6 +217,51 @@ async function seedRemote() {
   const { error: snapErr } = await supabase.from('rating_snapshots').insert(snapshotRows);
   if (snapErr) throw new Error(`Failed to insert snapshots: ${snapErr.message}`);
   console.log(`✅ Inserted ${snapshotRows.length} rating snapshots.`);
+
+  // 7. Seed / sync profiles for the 29 canonical players & Superadmin
+  console.log('Synchronizing player profiles with calculated ratings & Superadmin role...');
+  const profileRows = Array.from(playersMap.values()).map((p) => {
+    const rState = replay.ratingStates.get(p.id);
+    const isSuperAdminEmail = p.canonicalName.toLowerCase().includes('guillermo');
+    return {
+      id: p.id,
+      name: p.canonicalName,
+      email: isSuperAdminEmail ? SUPER_ADMIN_EMAIL : `${p.canonicalName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@tourneymaster.local`,
+      role: isSuperAdminEmail ? 'super_admin' : 'player',
+      admin_status: isSuperAdminEmail ? 'approved' : 'none',
+      category: 'plus14',
+      declared_level: 6.0,
+      rating: rState?.rating ?? 1500,
+      rating_deviation: rState?.ratingDeviation ?? 350,
+      volatility: rState?.volatility ?? 0.06,
+      matches_played: rState?.matchesPlayed ?? 0,
+    };
+  });
+
+  // Ensure guillermoriveraterriza@gmail.com is present as superadmin
+  const hasSuperAdmin = profileRows.some(p => p.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase());
+  if (!hasSuperAdmin) {
+    profileRows.push({
+      id: 'a0000000-0000-0000-0000-000000000001',
+      name: 'Guillermo Rivera',
+      email: SUPER_ADMIN_EMAIL,
+      role: 'super_admin',
+      admin_status: 'approved',
+      category: 'plus14',
+      declared_level: 8.5,
+      rating: 1800,
+      rating_deviation: 150,
+      volatility: 0.06,
+      matches_played: 20,
+    });
+  }
+
+  const { error: profErr } = await supabase.from('profiles').upsert(profileRows, { onConflict: 'id' });
+  if (profErr) {
+    console.warn(`Note on profiles upsert: ${profErr.message}`);
+  } else {
+    console.log(`✅ Upserted ${profileRows.length} player profiles with ratings and superadmin designation.`);
+  }
 
   console.log('------------------------------------------------');
   console.log('🎉 REMOTE SUPABASE SEED COMPLETED SUCCESSFULLY!');

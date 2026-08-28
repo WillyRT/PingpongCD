@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "seed": "npx tsx --env-file=.env.local scripts/seed-remote-db.ts",
+    "db:verify": "node --env-file=.env.local scripts/verify-full-db.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
