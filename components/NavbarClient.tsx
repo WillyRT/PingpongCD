@@ -108,13 +108,14 @@ export function NavbarClient({ user }: NavbarClientProps) {
                   </div>
                 </Link>
 
-                <form action="/auth/signout" method="post" className="hidden sm:block">
+                <form action="/auth/signout" method="post" className="flex items-center">
                   <button
                     type="submit"
                     title="Cerrar sesión"
-                    className="p-2 rounded-xl text-[var(--muted-foreground)] hover:text-white hover:bg-[var(--secondary)] border border-transparent hover:border-[var(--border)] transition text-xs"
+                    className="py-1.5 px-2.5 rounded-xl text-red-400/90 hover:text-red-300 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition text-xs font-semibold flex items-center gap-1"
                   >
-                    Salir
+                    <span>🚪</span>
+                    <span className="hidden sm:inline">Cerrar Sesión</span>
                   </button>
                 </form>
               </div>

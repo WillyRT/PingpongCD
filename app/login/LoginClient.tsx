@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -37,8 +37,8 @@ export default function LoginClient({ initialRedirect, initialError }: LoginClie
     if (lower.includes('email not confirmed')) {
       return 'El correo electrónico no ha sido confirmado. Puedes entrar con Magic Link o confirmarlo en el panel.';
     }
-    if (lower.includes('rate limit') || lower.includes('too many requests')) {
-      return 'Límite de solicitudes alcanzado. Por favor, espera un minuto o utiliza acceso con contraseña.';
+    if (lower.includes('rate limit') || lower.includes('too many requests') || lower.includes('email rate limit exceeded')) {
+      return 'Has alcanzado el límite de envío de correos de Supabase (email rate limit exceeded). Por favor, utiliza la pestaña "Iniciar con Contraseña" para entrar al instante sin esperas.';
     }
     return msg;
   };
@@ -67,8 +67,7 @@ export default function LoginClient({ initialRedirect, initialError }: LoginClie
         // Sync session, role and obtain target destination
         const syncResult = await syncLoginSessionAction(cleanEmail);
         const destination = initialRedirect || syncResult.destination;
-        router.push(destination);
-        router.refresh();
+        window.location.href = destination;
         return;
       }
     } catch (err: any) {
@@ -138,26 +137,26 @@ export default function LoginClient({ initialRedirect, initialError }: LoginClie
         <button
           type="button"
           onClick={() => setActiveTab('password')}
-          className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
+          className={`flex-1 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
             activeTab === 'password'
               ? 'bg-[var(--primary)] text-white shadow-md'
               : 'text-[var(--muted-foreground)] hover:text-white'
           }`}
         >
           <span>🔑</span>
-          <span>Contraseña</span>
+          <span>Iniciar con Contraseña</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('otp')}
-          className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
+          className={`flex-1 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
             activeTab === 'otp'
               ? 'bg-[var(--primary)] text-white shadow-md'
               : 'text-[var(--muted-foreground)] hover:text-white'
           }`}
         >
           <span>✉️</span>
-          <span>Magic Link</span>
+          <span>Acceso con Magic Link</span>
         </button>
       </div>
 
@@ -166,7 +165,7 @@ export default function LoginClient({ initialRedirect, initialError }: LoginClie
         <form onSubmit={handlePasswordLogin} className="space-y-4">
           <div>
             <label htmlFor="email-password" className="block text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)] mb-2">
-              Correo Electrónico
+              Correo Electrónico (Email)
             </label>
             <input
               id="email-password"
@@ -228,7 +227,7 @@ export default function LoginClient({ initialRedirect, initialError }: LoginClie
                 <span>Accediendo...</span>
               </>
             ) : (
-              <span>Entrar al Sistema</span>
+              <span>Entrar a mi cuenta</span>
             )}
           </button>
 
