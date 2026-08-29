@@ -3,7 +3,7 @@ import type { MatchStage, MatchStatus, TournamentStatus, GroupStatus } from '../
 // ============ ROLES & CATEGORIES ============
 export type UserRole = 'super_admin' | 'admin' | 'referee' | 'player';
 export type AdminStatus = 'none' | 'pending' | 'approved' | 'rejected';
-export type AgeCategory = 'sub14' | 'plus14';
+export type AgeCategory = 'sub14' | 'plus14' | 'sub14_promoted';
 
 // ============ PROFILES ============
 

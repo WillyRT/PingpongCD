@@ -58,5 +58,9 @@ export function getCategoryLabel(category: AgeCategory): string {
       return 'Sub-14 (Junior)';
     case 'plus14':
       return 'Absoluta (+14 / Senior)';
+    case 'sub14_promoted':
+      return 'Sub-14 Promocionado (+14)';
+    default:
+      return 'General';
   }
 }

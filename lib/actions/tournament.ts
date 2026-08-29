@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { createTournamentSchema, qualifiersConfigSchema } from '@/lib/validation/schemas';
 import { calculateGroupCount, calculateGroupSizes } from '@/lib/engine/groups';
@@ -11,6 +11,7 @@ import { calculateStandings, type ConfirmedMatch } from '@/lib/engine/standings'
 import { canTransition, validateTransitionRequirements, type TransitionContext } from '@/lib/engine/tournament-state';
 import { calculateWinProbability } from '@/lib/engine/analytics';
 import { updateRating, type PlayerRating, type RatingMatchResult } from '@/lib/engine/rating';
+import { identifySub14Finalists } from '@/lib/engine/tournament-rules';
 import type { AgeCategory } from '@/lib/types/domain';
 
 export interface ActionResponse<T = unknown> {
@@ -667,5 +668,96 @@ export async function finishTournamentAction(tournamentId: string): Promise<Acti
     return { success: true };
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+/**
+ * Promotes Sub-14 Champion and Runner-up into the Senior tournament draw.
+ * Preserves updated Glicko-2 ratings and registers them with category 'sub14_promoted'.
+ */
+export async function promoteSub14FinalistsAction(input: {
+  sub14TournamentId: string;
+  seniorTournamentId: string;
+}): Promise<ActionResponse<{ promoted: Array<{ playerId: string; name: string; position: 1 | 2 }> }>> {
+  try {
+    const admin = createAdminClient();
+
+    // 1. Fetch Sub-14 matches to identify champion and runner-up
+    const { data: sub14Matches, error: mErr } = await admin
+      .from('matches')
+      .select('*')
+      .eq('tournament_id', input.sub14TournamentId);
+
+    if (mErr || !sub14Matches || sub14Matches.length === 0) {
+      return { success: false, error: 'No se encontraron partidos para el torneo Sub-14' };
+    }
+
+    const { championId, runnerUpId, isComplete } = identifySub14Finalists(sub14Matches);
+
+    if (!isComplete || !championId || !runnerUpId) {
+      return {
+        success: false,
+        error: 'La final Sub-14 aún no ha concluido con un ganador oficial verificado.',
+      };
+    }
+
+    // 2. Fetch player profiles
+    const { data: profiles } = await admin
+      .from('profiles')
+      .select('id, name, nickname, rating')
+      .in('id', [championId, runnerUpId]);
+
+    const championProfile = profiles?.find((p) => p.id === championId);
+    const runnerUpProfile = profiles?.find((p) => p.id === runnerUpId);
+
+    // 3. Verify Senior tournament exists
+    const { data: seniorTournament, error: sErr } = await admin
+      .from('tournaments')
+      .select('*')
+      .eq('id', input.seniorTournamentId)
+      .single();
+
+    if (sErr || !seniorTournament) {
+      return { success: false, error: 'Torneo Senior de destino no encontrado' };
+    }
+
+    // 4. Enroll both finalists into Senior tournament participants
+    const finalists = [
+      {
+        playerId: championId,
+        name: championProfile?.nickname || championProfile?.name || 'Campeón Sub-14',
+        position: 1 as const,
+      },
+      {
+        playerId: runnerUpId,
+        name: runnerUpProfile?.nickname || runnerUpProfile?.name || 'Subcampeón Sub-14',
+        position: 2 as const,
+      },
+    ];
+
+    for (const f of finalists) {
+      await admin.from('tournament_participants').upsert(
+        {
+          tournament_id: input.seniorTournamentId,
+          user_id: f.playerId,
+          category: 'sub14_promoted' as any,
+          confirmed_at: new Date().toISOString(),
+        },
+        { onConflict: 'tournament_id, user_id' }
+      );
+    }
+
+    revalidatePath(`/admin/tournaments/${input.seniorTournamentId}`);
+    revalidatePath(`/t/${seniorTournament.slug}`);
+
+    return {
+      success: true,
+      data: { promoted: finalists },
+    };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Error al promover finalistas Sub-14',
+    };
   }
 }

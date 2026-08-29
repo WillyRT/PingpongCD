@@ -195,7 +195,7 @@ export type TournamentGroupUpdate = Partial<Omit<TournamentGroupRow, 'id' | 'tou
 export interface TournamentParticipantRow {
   tournament_id: string;
   user_id: string;
-  category: 'sub14' | 'plus14';
+  category: 'sub14' | 'plus14' | 'sub14_promoted';
   declared_level: number | null;
   group_id: string | null;
   seed_number: number | null;

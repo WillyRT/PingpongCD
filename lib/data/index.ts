@@ -5,6 +5,7 @@ import { HISTORICAL_2026_MATCHES, HISTORICAL_2026_PLAYERS } from './historical-2
 export * from './historical-2024';
 export * from './historical-2025';
 export * from './historical-2026';
+export * from './master-history';
 
 export interface HistoricalSeasonSummary {
   season: number;

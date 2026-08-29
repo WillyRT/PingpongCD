@@ -202,6 +202,10 @@ export default async function PlayerPortalPage() {
                   <span className="font-semibold text-white">
                     {profile.category ? getCategoryLabel(profile.category as AgeCategory) : 'Categoría General'}
                   </span>
+                  <span>•</span>
+                  <a href="/auth/signout" className="text-red-400/80 hover:text-red-400 hover:underline transition">
+                    Cerrar sesión
+                  </a>
                 </div>
               </div>
             </div>
