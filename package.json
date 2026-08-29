@@ -13,6 +13,7 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "seed": "npx tsx --env-file=.env.local scripts/seed-remote-db.ts",
+    "seed:history": "tsx scripts/seed-master-history.ts",
     "db:verify": "node --env-file=.env.local scripts/verify-full-db.mjs"
   },
   "dependencies": {
@@ -36,6 +37,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.23.12",
     "typescript": "^5",
     "vitest": "^4.1.11"
   }
