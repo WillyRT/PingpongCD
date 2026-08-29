@@ -654,6 +654,46 @@ export async function verifyPlayerRegistrationAction(formData: {
     }
 
     if (!verifiedData) {
+      // Find pending challenge in DB to track failed attempts
+      const { data: pendingChallenges } = await admin
+        .from('registration_verifications')
+        .select('*')
+        .ilike('email', cleanEmail)
+        .eq('tournament_id', cleanTournamentId)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const challenge = pendingChallenges?.[0];
+      if (challenge) {
+        const attempts = ((challenge.metadata?.attempts as number) || 0) + 1;
+        if (attempts >= 5) {
+          await admin
+            .from('registration_verifications')
+            .delete()
+            .eq('id', challenge.id);
+          await clearRegistrationChallengeCookie();
+          return {
+            success: false,
+            error: 'Has superado el límite de 5 intentos. El código ha sido invalidado por seguridad. Solicita una nueva inscripción.',
+          };
+        } else {
+          await admin
+            .from('registration_verifications')
+            .update({
+              metadata: {
+                ...(challenge.metadata || {}),
+                attempts,
+              },
+            })
+            .eq('id', challenge.id);
+          return {
+            success: false,
+            error: `Código de verificación incorrecto (intento ${attempts} de 5).`,
+          };
+        }
+      }
+
       return {
         success: false,
         error: 'El código de verificación es incorrecto o ha expirado. Por favor, solicita uno nuevo.',

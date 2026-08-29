@@ -4,7 +4,7 @@ import { MATCH_STATUSES, type MatchStatus } from '../../lib/engine/constants';
 
 describe('MÓDULO 2 & 4: Referee, Dual-Check & 4-Station Architecture Suite', () => {
   describe('1. Fallback Robusto de SESSION_SECRET y Token Signing', () => {
-    it('uses the robust fallback key when neither SESSION_SECRET nor HMAC_SECRET is provided', async () => {
+    it('uses the ephemeral Web Crypto key when neither SESSION_SECRET nor HMAC_SECRET is provided in dev/test', async () => {
       const origSession = process.env.SESSION_SECRET;
       const origHmac = process.env.HMAC_SECRET;
       delete process.env.SESSION_SECRET;
@@ -12,7 +12,8 @@ describe('MÓDULO 2 & 4: Referee, Dual-Check & 4-Station Architecture Suite', ()
 
       try {
         const secret = getSigningSecret();
-        expect(secret).toBe('tourneymaster_default_secure_secret_fallback_key_2026');
+        expect(typeof secret).toBe('string');
+        expect(secret.length).toBe(64); // 32 bytes in hex
 
         // Verify token can be signed and verified without runtime exceptions
         const token = await createPlayerSessionToken({

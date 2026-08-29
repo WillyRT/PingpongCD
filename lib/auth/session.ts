@@ -5,6 +5,7 @@
 
 export {
   getSigningSecret,
+  generateEphemeralSecret,
   createPlayerSessionToken,
   verifyPlayerSessionToken,
   setPlayerSessionCookie,

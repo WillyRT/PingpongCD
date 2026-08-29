@@ -6,6 +6,8 @@ import type { TournamentRow, TournamentGroupRow, MatchRow } from '@/lib/types/da
 import { assignMatchTableAction } from '@/lib/actions/admin';
 import { verifyMatchScoreAction } from '@/lib/actions/matches';
 
+import { dispatchStationTables } from '@/lib/engine/tables';
+
 interface MatchWithPlayers extends MatchRow {
   player1?: { id: string; name: string; nickname?: string | null; rating?: number; category?: string };
   player2?: { id: string; name: string; nickname?: string | null; rating?: number; category?: string };
@@ -39,77 +41,28 @@ export function StationsClient({
     return m.category === selectedCategory;
   });
 
-  // Map groups by index / letter
-  const groupA = groups.find((g) => g.group_code === 'A');
-  const groupB = groups.find((g) => g.group_code === 'B');
-  const groupC = groups.find((g) => g.group_code === 'C');
-  const groupD = groups.find((g) => g.group_code === 'D');
-
-  // Get active or pending matches for each station
-  // Mesa 1 -> Grupo A (or explicitly assigned table_number === 1)
-  // Mesa 2 -> Grupo B (or explicitly assigned table_number === 2)
-  // Mesa 3 -> Grupo C (or explicitly assigned table_number === 3)
-  // Mesa 4 -> Grupo D (or explicitly assigned table_number === 4)
-  // In playoffs, FIFO matches assigned to available tables
   const isPlayoffs = tournament.status === 'bracket_stage';
 
-  function getStationMatch(stationNumber: number): {
-    current: MatchWithPlayers | null;
-    queue: MatchWithPlayers[];
-    groupLabel: string;
-  } {
-    if (!isPlayoffs) {
-      const assignedGroup = stationNumber === 1 ? groupA : stationNumber === 2 ? groupB : stationNumber === 3 ? groupC : groupD;
-      const groupLetter = String.fromCharCode(64 + stationNumber);
+  // Dynamic 4-table dispatcher:
+  // - 4 groups: Fixed 1:1 mapping (Table 1 → Group A, Table 2 → Group B, Table 3 → Group C, Table 4 → Group D)
+  // - < 4 groups or Playoffs: Dynamic FIFO dispatch of free tables by priority without idle tables
+  const dispatchedTables = dispatchStationTables({
+    groups: groups.map((g) => ({ id: g.id, group_code: g.group_code, name: g.group_code })),
+    matches: filteredMatches as any,
+    isPlayoffs,
+  });
 
-      const stationMatches = filteredMatches.filter((m) => {
-        if (m.table_number === stationNumber) return true;
-        if (assignedGroup && m.group_id === assignedGroup.id) return true;
-        return false;
-      });
-
-      // Find current active match: disputed first, then pending_verification/submitted, then in_progress/scheduled
-      const current =
-        stationMatches.find((m) => m.status === 'disputed') ||
-        stationMatches.find((m) => m.status === 'pending_verification' || m.status === 'submitted') ||
-        stationMatches.find((m) => m.table_number === stationNumber && (m.status === 'in_progress' || m.status === 'scheduled')) ||
-        stationMatches.find((m) => m.status === 'pending' || m.status === 'scheduled') ||
-        null;
-
-      const queue = stationMatches.filter(
-        (m) => m.id !== current?.id && m.status !== 'confirmed' && m.status !== 'completed' && m.status !== 'walkover'
-      );
-
-      return { current, queue, groupLabel: `Grupo ${groupLetter}` };
-    } else {
-      // Bracket playoffs: FIFO match allocation
-      const current = filteredMatches.find(
-        (m) =>
-          m.table_number === stationNumber &&
-          (m.status === 'in_progress' ||
-            m.status === 'scheduled' ||
-            m.status === 'pending_verification' ||
-            m.status === 'submitted' ||
-            m.status === 'disputed')
-      ) || null;
-
-      // Available unassigned playoff matches
-      const queue = filteredMatches.filter(
-        (m) =>
-          m.stage !== 'group' &&
-          !m.table_number &&
-          (m.status === 'pending' || m.status === 'scheduled') &&
-          m.player1_id &&
-          m.player2_id
-      );
-
-      return { current, queue, groupLabel: 'Cruces Eliminatorios (Playoffs)' };
-    }
-  }
-
-  const stations = [1, 2, 3, 4].map((num) => ({
-    tableNumber: num,
-    ...getStationMatch(num),
+  const stations = dispatchedTables.map((d) => ({
+    tableNumber: d.tableNumber,
+    current: d.currentMatch as MatchWithPlayers | null,
+    queue: d.queuedMatches as MatchWithPlayers[],
+    groupLabel: d.assignedGroup
+      ? `Grupo ${d.assignedGroup.group_code}`
+      : isPlayoffs
+      ? 'Cruces Eliminatorios (Playoffs)'
+      : groups.length < 4
+      ? `Mesa Dinámica ${d.tableNumber}`
+      : `Mesa ${d.tableNumber}`,
   }));
 
   // Handle referee assign match to table

@@ -43,10 +43,20 @@ describe('Player Session Verification & Cookie Hardening Suite', () => {
       expect(getSigningSecret()).toBe('my-custom-hmac-secret');
     });
 
-    it('falls back to robust default key if neither SESSION_SECRET nor HMAC_SECRET is set', () => {
+    it('generates an ephemeral Web Crypto secret in dev/test when no env var is set', () => {
       delete process.env.SESSION_SECRET;
       delete process.env.HMAC_SECRET;
-      expect(getSigningSecret()).toBe('tourneymaster_default_secure_secret_fallback_key_2026');
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'test';
+      const secret = getSigningSecret();
+      expect(typeof secret).toBe('string');
+      expect(secret.length).toBe(64); // 32 bytes in hex
+    });
+
+    it('throws in production if neither SESSION_SECRET nor HMAC_SECRET is set', () => {
+      delete process.env.SESSION_SECRET;
+      delete process.env.HMAC_SECRET;
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
+      expect(() => getSigningSecret()).toThrowError('SESSION_SECRET is required in production');
     });
   });
 
@@ -236,6 +246,31 @@ describe('Player Session Verification & Cookie Hardening Suite', () => {
 
       expect(result.valid).toBe(false);
       expect(result.reason).toMatch(/Firma criptográfica inválida/i);
+    });
+
+    it('invalidates challenge token after 5 failed attempts', async () => {
+      const code = '123456';
+      const tokenWith5Attempts = await createRegistrationChallengeToken({
+        email: 'user@pingpong.cd',
+        code,
+        tournamentId: 't-100',
+        playerId: 'p-100',
+        name: 'User',
+        category: 'plus14',
+        declaredLevel: 5,
+        assignedRating: 1500,
+        attempts: 5,
+      });
+
+      const result = await verifyRegistrationChallengeToken(
+        tokenWith5Attempts,
+        code,
+        'user@pingpong.cd',
+        't-100'
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.reason).toMatch(/límite de 5 intentos fallidos/i);
     });
   });
 

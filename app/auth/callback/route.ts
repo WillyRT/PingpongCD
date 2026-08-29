@@ -83,7 +83,16 @@ export async function GET(request: Request) {
         roleDefault = (isAdmin || isReferee) ? '/admin' : '/me';
       }
 
-      const targetPath = rawRedirect ? validateRedirectUrl(rawRedirect, roleDefault) : roleDefault;
+      let targetPath = roleDefault;
+      if (rawRedirect) {
+        const validated = validateRedirectUrl(rawRedirect, '');
+        if (validated && validated !== '' && validated !== '/admin') {
+          targetPath = validated;
+        } else if (validated === '/admin') {
+          targetPath = roleDefault;
+        }
+      }
+
       return NextResponse.redirect(`${origin}${targetPath}`);
     }
   }

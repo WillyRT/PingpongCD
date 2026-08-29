@@ -19,12 +19,33 @@ export const PLAYER_SESSION_COOKIE_OPTIONS = {
   maxAge: 60 * 60 * 24 * 7, // 7 days
 };
 
+let ephemeralSecret: string | null = null;
+
+/**
+ * Generates an in-memory ephemeral random secret using Web Crypto API.
+ * Edge Runtime and Node.js compatible (does NOT use node:crypto).
+ */
+export function generateEphemeralSecret(): string {
+  if (!ephemeralSecret) {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    ephemeralSecret = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  return ephemeralSecret;
+}
+
 export function getSigningSecret(): string {
-  return (
-    process.env.SESSION_SECRET ||
-    process.env.HMAC_SECRET ||
-    'tourneymaster_default_secure_secret_fallback_key_2026'
-  );
+  const secret = process.env.SESSION_SECRET || process.env.HMAC_SECRET;
+  if (secret) {
+    return secret;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SESSION_SECRET is required in production');
+  }
+
+  return generateEphemeralSecret();
 }
 
 /**

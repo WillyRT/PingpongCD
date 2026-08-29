@@ -225,9 +225,8 @@ CREATE TABLE IF NOT EXISTS public.matches (
   verified_by_id UUID REFERENCES public.profiles(id),
   table_number INTEGER DEFAULT NULL,
   dispute_reason TEXT DEFAULT NULL,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN (
-    'pending', 'submitted', 'confirmed', 'disputed',
-    'scheduled', 'in_progress', 'pending_verification', 'completed', 'walkover'
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN (
+    'scheduled', 'in_progress', 'pending_verification', 'completed', 'disputed', 'walkover'
   )),
   win_expectancy_p1 NUMERIC(4,3),
   win_expectancy_p2 NUMERIC(4,3),

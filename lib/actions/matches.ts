@@ -66,7 +66,7 @@ export async function reportMatchScoreAction(input: {
     const isParticipant = match.player1_id === callerId || match.player2_id === callerId;
 
     if (!isPrivileged && !isParticipant) {
-      return { success: false, error: 'Solo los participantes del partido o un árbitro pueden anotar el tanteo.' };
+      return { success: false, error: '403 Forbidden: Solo los participantes del partido o un árbitro pueden anotar el tanteo.' };
     }
 
     // Validate score according to table tennis rules for this stage
@@ -167,17 +167,18 @@ export async function verifyMatchScoreAction(input: {
     }
 
     const isPrivileged = await checkRefereeOrAdmin(callerId);
-    const isPlayer = match.player1_id === callerId || match.player2_id === callerId;
+    const isParticipant = match.player1_id === callerId || match.player2_id === callerId;
+    const reportedById = match.reported_by_id || match.reported_by;
+    const isOpponent = isParticipant && callerId !== reportedById;
 
-    if (!isPrivileged && !isPlayer) {
-      return { success: false, error: 'No tienes autorización para validar este partido.' };
+    if (!isPrivileged && !isParticipant) {
+      return { success: false, error: '403 Forbidden: No autorizado para confirmar o impugnar este partido.' };
     }
 
     if (input.action === 'confirm') {
       // Prevent self-confirmation unless referee/admin
-      const reporter = match.reported_by_id || match.reported_by;
-      if (reporter === callerId && !isPrivileged) {
-        return { success: false, error: 'El jugador que reportó no puede auto-confirmar su propio resultado.' };
+      if (!isPrivileged && !isOpponent) {
+        return { success: false, error: '403 Forbidden: El jugador que reportó no puede auto-confirmar su propio resultado.' };
       }
 
       // If referee provides overrides
@@ -192,10 +193,9 @@ export async function verifyMatchScoreAction(input: {
     }
 
     if (input.action === 'dispute') {
-      // Must be a participant or referee
-      const reporter = match.reported_by_id || match.reported_by;
-      if (reporter === callerId && !isPrivileged) {
-        return { success: false, error: 'No puedes impugnar un marcador anotado por ti mismo.' };
+      // Must be opponent or privileged referee/admin
+      if (!isPrivileged && !isOpponent) {
+        return { success: false, error: '403 Forbidden: No puedes impugnar un marcador anotado por ti mismo.' };
       }
 
       const reason = input.disputeReason?.trim() || 'Marcador impugnado por desacuerdo en el tanteo.';

@@ -13,6 +13,7 @@ export interface RegistrationChallengeData {
   declaredLevel: number;
   assignedRating: number;
   exp: number;
+  attempts?: number;
 }
 
 /**
@@ -143,12 +144,19 @@ export async function verifyRegistrationChallengeToken(
       return { valid: false, reason: 'El email no coincide con la solicitud de registro' };
     }
 
-    if (payload.tournamentId !== tournamentId) {
-      return { valid: false, reason: 'El torneo no coincide con la solicitud de registro' };
+    if (payload.attempts && payload.attempts >= 5) {
+      return { valid: false, reason: 'Has superado el límite de 5 intentos fallidos. El token ha sido invalidado.' };
     }
 
     if (payload.code.trim() !== code.trim()) {
-      return { valid: false, reason: 'Código de verificación incorrecto' };
+      const currentAttempts = (payload.attempts || 0) + 1;
+      const isExceeded = currentAttempts >= 5;
+      return {
+        valid: false,
+        reason: isExceeded
+          ? 'Has superado el límite de 5 intentos fallidos. El código ha sido invalidado por seguridad.'
+          : `Código de verificación incorrecto (intento ${currentAttempts} de 5)`,
+      };
     }
 
     return { valid: true, data: payload };
