@@ -51,6 +51,7 @@ function deterministicUUID(input: string): string {
 export const NAME_MAP: Record<string, string> = {
   'jeipi': 'Juan Pedro González',
   'juan pedro': 'Juan Pedro González',
+  'juan': 'Juan León',
   'rick': 'Ricardo Mengíbar',
   'rick (7)': 'Ricardo Mengíbar',
   'ricardo mengibar': 'Ricardo Mengíbar',
@@ -108,7 +109,6 @@ export const NAME_MAP: Record<string, string> = {
   'gonzalo peñalver (3)': 'Gonzalo Peñalver',
   'sergio rebellon (5)': 'Sergio Rebellón',
   'ivan horcajada (8)': 'Iván Horcajada',
-  'juan': 'Juan',
   'josechu': 'Josechu',
   'luli': 'Luli',
   'chamorro': 'Chamorro',
@@ -602,7 +602,7 @@ export const AUDITED_TOURNAMENTS: TournamentDef[] = [
     groups: {
       GA: [
         ['Pablo Olalla', 'Luis Valdés', 7, 4],
-        ['Juan Pedro González', 'Juan', 7, 4],
+        ['Juan Pedro González', 'Juan León', 7, 4],
         ['Luis Valdés', 'Claudia Terán', 7, 1],
         ['Pablo Olalla', 'Claudia Terán', 7, 1],
         ['Juan León', 'Ignacio Betherod', 7, 3],
@@ -1404,6 +1404,12 @@ async function runMasterSeed() {
     console.log(`- Fernando Escudero: ${ferStats?.wins} Victorias, ${ferStats?.losses} Derrotas`);
   }
 
+  const juanLeonId = playerNameToId.get('juan león') || playerNameToId.get('juan leon');
+  if (juanLeonId) {
+    const juanStats = playerWinLoss.get(juanLeonId);
+    console.log(`- Juan León: ${juanStats?.wins} Victorias, ${juanStats?.losses} Derrotas`);
+  }
+
   console.log('\n===========================================================');
   console.log('🎉 AUDITED MASTER HISTORICAL SEED COMPLETED SUCCESSFULLY!');
   console.log(`✅ Unique Players Seeded: ${playerRows.length}`);
@@ -1413,7 +1419,10 @@ async function runMasterSeed() {
   console.log('===========================================================');
 }
 
-runMasterSeed().catch((err) => {
-  console.error('Fatal seed execution error:', err);
-  process.exit(1);
-});
+const isMain = process.argv[1] && (process.argv[1].endsWith('seed-master-history.mjs') || process.argv[1].endsWith('seed-master-history.ts'));
+if (isMain) {
+  runMasterSeed().catch((err) => {
+    console.error('Fatal seed execution error:', err);
+    process.exit(1);
+  });
+}

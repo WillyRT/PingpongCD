@@ -354,8 +354,11 @@ describe('Historical Archive Engine', () => {
       expect(resolveCanonicalPlayerName('ivan horcajada (8)')).toBe('Iván Horcajada');
     });
 
+    it('normalizes single-name aliases to full names', () => {
+      expect(resolveCanonicalPlayerName('juan')).toBe('Juan León');
+    });
+
     it('preserves standalone distinct profiles', () => {
-      expect(resolveCanonicalPlayerName('juan')).toBe('Juan');
       expect(resolveCanonicalPlayerName('josechu')).toBe('Josechu');
       expect(resolveCanonicalPlayerName('luli')).toBe('Luli');
       expect(resolveCanonicalPlayerName('chamorro')).toBe('Chamorro');

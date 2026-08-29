@@ -202,6 +202,7 @@ export const NAME_NORMALIZATION_MAP: Record<string, string> = {
   // Alias y apodos específicos confirmados
   'jeipi': 'Juan Pedro González',
   'juan pedro': 'Juan Pedro González',
+  'juan': 'Juan León',
   'rick': 'Ricardo Mengíbar',
   'rick (7)': 'Ricardo Mengíbar',
   'ricardo mengibar': 'Ricardo Mengíbar',
@@ -273,7 +274,6 @@ export const NAME_NORMALIZATION_MAP: Record<string, string> = {
   'ivan horcajada (8)': 'Iván Horcajada',
   
   // Perfiles independientes mantenidos tal cual
-  'juan': 'Juan',
   'josechu': 'Josechu',
   'luli': 'Luli',
   'chamorro': 'Chamorro',
