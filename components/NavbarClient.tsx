@@ -42,11 +42,10 @@ export function NavbarClient({ user }: NavbarClientProps) {
             </div>
             <div className="flex flex-col">
               <span className="text-base sm:text-lg font-black tracking-tight leading-none text-white">
-                Tourney<span className="text-[var(--primary)]">Master</span>
-                <span className="text-[var(--accent)] text-xs ml-1 font-bold">AI</span>
+                PingPong<span className="text-[var(--primary)]">CD</span>
               </span>
               <span className="text-[10px] text-[var(--muted-foreground)] tracking-wide">
-                Table Tennis Circuit
+                Circuito oficial de Tenis de Mesa Ciudad Ducal
               </span>
             </div>
           </Link>

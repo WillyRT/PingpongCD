@@ -6,11 +6,11 @@ import type { TournamentRow } from '@/lib/types/database';
 
 interface HomeClientProps {
   initialTournaments: TournamentRow[];
+  isAdmin?: boolean;
 }
 
-export function HomeClient({ initialTournaments }: HomeClientProps) {
+export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientProps) {
   const [search, setSearch] = useState('');
-  const [joinCode, setJoinCode] = useState('');
 
   const filteredTournaments = initialTournaments.filter((t) =>
     t.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -27,75 +27,63 @@ export function HomeClient({ initialTournaments }: HomeClientProps) {
 
   return (
     <div className="space-y-12">
-      {/* Hero Section */}
-      <section className="text-center space-y-4 pt-6">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--card)] border border-[var(--border)] text-xs font-bold shadow-sm">
-          <span className="text-base">🏓</span>
-          <span>Circuito Oficial de Tenis de Mesa TourneyMaster AI</span>
-          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-        </div>
-
-        <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-none">
-          Compite. Mide tu <span className="text-[var(--primary)]">ELO</span>.<br />
-          Domina la <span className="text-[var(--accent)]">Mesa</span>.
-        </h1>
-
-        <p className="text-sm sm:text-base text-[var(--muted-foreground)] max-w-2xl mx-auto leading-relaxed">
-          Plataforma integral con desempate Glicko-2 en vivo, analítica predictiva Bradley-Terry,
-          doble validación de actas y consola de árbitro para 4 mesas simultáneas.
-        </p>
-      </section>
-
-      {/* 3 Prominent Action Cards */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* ACTION 1: SEARCH / JOIN TOURNAMENT */}
+      {/* Prominent Action Cards */}
+      <section className={`grid gap-6 ${isAdmin ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 md:grid-cols-3'}`}>
+        {/* ACTION 1: VER TORNEOS ACTIVOS */}
         <div className="rounded-2xl bg-[var(--card)] border border-[var(--border)] p-6 flex flex-col justify-between shadow-lg hover:border-[var(--primary)]/50 transition-all group">
           <div className="space-y-3">
             <div className="w-12 h-12 rounded-xl gradient-primary text-white flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition-transform">
-              🔍
+              🏆
             </div>
-            <h2 className="text-xl font-black">Buscar / Unirse a un Torneo</h2>
+            <h2 className="text-xl font-black">Ver Torneos Activos</h2>
             <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
-              Introduce el enlace, código o slug del torneo para completar tu inscripción pública en menos de 1 minuto.
+              Consulta los cuadros oficiales, fases de grupos en vivo y actas de todas las ediciones del circuito.
             </p>
+          </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (joinCode.trim()) {
-                  window.location.href = `/join/${encodeURIComponent(joinCode.trim())}`;
-                }
-              }}
-              className="pt-2 space-y-2"
+          <div className="pt-6">
+            <a
+              href="#torneos-circuito"
+              className="w-full py-3 rounded-xl gradient-primary text-white text-xs font-bold shadow transition flex items-center justify-center gap-2 hover:opacity-95"
             >
-              <input
-                type="text"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value)}
-                placeholder="Slug o ID (ej: prueba-ping-pong)"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-xs focus:outline-none focus:border-[var(--primary)] font-medium"
-              />
-              <button
-                type="submit"
-                disabled={!joinCode.trim()}
-                className="w-full py-2.5 rounded-xl gradient-primary text-white text-xs font-bold shadow hover:opacity-95 transition disabled:opacity-40"
-              >
-                Inscribirme Ahora →
-              </button>
-            </form>
+              <span>Explorar Torneos</span>
+              <span>↓</span>
+            </a>
           </div>
         </div>
 
-        {/* ACTION 2: MY PROFILE / ACCESS */}
+        {/* ACTION 2: RANKING OFICIAL */}
+        <div className="rounded-2xl bg-[var(--card)] border border-[var(--border)] p-6 flex flex-col justify-between shadow-lg hover:border-amber-500/50 transition-all group">
+          <div className="space-y-3">
+            <div className="w-12 h-12 rounded-xl bg-amber-600 text-white flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition-transform">
+              📊
+            </div>
+            <h2 className="text-xl font-black">Ranking Oficial (Glicko-2)</h2>
+            <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
+              Clasificación general actualizada con algoritmo Glicko-2, ratios de victoria y estadísticas de cantera y senior.
+            </p>
+          </div>
+
+          <div className="pt-6">
+            <Link
+              href="/leaderboard"
+              className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow transition flex items-center justify-center gap-2"
+            >
+              <span>Ver Ranking Oficial</span>
+              <span>→</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* ACTION 3: MI PORTAL DE JUGADOR */}
         <div className="rounded-2xl bg-[var(--card)] border border-[var(--border)] p-6 flex flex-col justify-between shadow-lg hover:border-blue-500/50 transition-all group">
           <div className="space-y-3">
             <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition-transform">
               👤
             </div>
-            <h2 className="text-xl font-black">Mi Perfil / Acceder</h2>
+            <h2 className="text-xl font-black">Mi Portal de Jugador</h2>
             <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
-              Acceso directo para jugadores. Consulta tu rating oficial Glicko-2, racha de victorias,
-              mesa asignada y valida los marcadores de tus partidos.
+              Acceso para jugadores. Consulta tu ELO individual, próximos partidos asignados, mesa de juego y valida resultados.
             </p>
           </div>
 
@@ -104,39 +92,40 @@ export function HomeClient({ initialTournaments }: HomeClientProps) {
               href="/me"
               className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow transition flex items-center justify-center gap-2"
             >
-              <span>Acceder a Mi Portal (/me)</span>
+              <span>Acceder a Mi Portal</span>
               <span>→</span>
             </Link>
           </div>
         </div>
 
-        {/* ACTION 3: CREATE TOURNAMENT */}
-        <div className="rounded-2xl bg-[var(--card)] border border-[var(--border)] p-6 flex flex-col justify-between shadow-lg hover:border-purple-500/50 transition-all group">
-          <div className="space-y-3">
-            <div className="w-12 h-12 rounded-xl bg-purple-600 text-white flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition-transform">
-              🏓
+        {/* ACTION 4: CREAR TORNEO (SOLO ADMINS) */}
+        {isAdmin && (
+          <div className="rounded-2xl bg-[var(--card)] border border-purple-500/40 p-6 flex flex-col justify-between shadow-lg hover:border-purple-500 transition-all group bg-gradient-to-br from-purple-500/5 via-transparent to-transparent">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-purple-600 text-white flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition-transform">
+                ⚙️
+              </div>
+              <h2 className="text-xl font-black text-purple-300">Crear Torneo</h2>
+              <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
+                Herramienta exclusiva para administradores. Genera grupos equilibrados por ELO y cuadros eliminatorios en 1 clic.
+              </p>
             </div>
-            <h2 className="text-xl font-black">Crear Torneo</h2>
-            <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
-              Herramienta profesional para directores de club y organizadores. Generación automática de grupos
-              equilibrados por ELO y cuadro eliminatorio en 1 clic.
-            </p>
-          </div>
 
-          <div className="pt-6">
-            <Link
-              href="/admin/tournaments/new"
-              className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow transition flex items-center justify-center gap-2"
-            >
-              <span>Crear Nuevo Torneo</span>
-              <span>+</span>
-            </Link>
+            <div className="pt-6">
+              <Link
+                href="/admin/tournaments/new"
+                className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow transition flex items-center justify-center gap-2"
+              >
+                <span>Crear Nuevo Torneo</span>
+                <span>+</span>
+              </Link>
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       {/* Active Tournaments Showcase */}
-      <section className="space-y-4 pt-4">
+      <section id="torneos-circuito" className="space-y-4 pt-4 scroll-mt-20">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-2xl font-black">🏆 Torneos del Circuito</h2>

@@ -664,6 +664,8 @@ export async function finishTournamentAction(tournamentId: string): Promise<Acti
     revalidatePath(`/admin/tournaments/${tournamentId}`);
     revalidatePath('/leaderboard');
     revalidatePath('/player');
+    revalidatePath('/me');
+    revalidatePath('/');
 
     return { success: true };
   } catch (err: unknown) {

@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'TourneyMaster AI',
-  description: 'Intelligent table tennis tournament management system',
+  title: 'PingPongCD - Circuito Oficial de Tenis de Mesa Ciudad Ducal',
+  description: 'Plataforma oficial del Circuito de Tenis de Mesa Ciudad Ducal. Torneos, cuadros eliminatorios y ranking oficial ELO Glicko-2.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'TourneyMaster AI',
+    title: 'PingPongCD',
   },
 };
 

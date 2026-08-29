@@ -364,6 +364,7 @@ async function finalizeAndConfirmMatch(
 
   revalidatePath('/player');
   revalidatePath('/me');
+  revalidatePath('/');
   revalidatePath(`/admin/tournaments/${match.tournament_id}`);
   revalidatePath(`/admin/tournaments/${match.tournament_id}/stations`);
   return { success: true };
