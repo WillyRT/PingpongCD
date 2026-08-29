@@ -26,6 +26,7 @@ import {
   resolveDisputeAction,
   updateParticipantAction,
   deleteParticipantAction,
+  adminAddParticipantAction,
 } from '@/lib/actions/admin';
 import { calculateStandings, type ConfirmedMatch } from '@/lib/engine/standings';
 import { calculateCompetitiveBalanceIndex } from '@/lib/engine/cbi';
@@ -77,6 +78,18 @@ export function AdminTournamentClient({
   } | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Admin Direct Participant Addition state
+  const [showAddParticipant, setShowAddParticipant] = useState(false);
+  const [newParticipant, setNewParticipant] = useState({
+    name: '',
+    nickname: '',
+    email: '',
+    birthDateOrAge: '20',
+    declaredLevel: 5.0,
+  });
+  const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   // Dispute resolution state
   const [selectedDisputeMatch, setSelectedDisputeMatch] = useState<string | null>(null);
@@ -262,6 +275,38 @@ export function AdminTournamentClient({
       setDeleteError(err?.message || 'Error inesperado');
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleAddParticipant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddError(null);
+    if (!newParticipant.name.trim()) {
+      setAddError('El nombre es obligatorio');
+      return;
+    }
+
+    setAddLoading(true);
+    try {
+      const res = await adminAddParticipantAction({
+        tournamentId: tournament.id,
+        name: newParticipant.name.trim(),
+        nickname: newParticipant.nickname.trim() || newParticipant.name.trim(),
+        email: newParticipant.email.trim(),
+        birthDateOrAge: newParticipant.birthDateOrAge,
+        declaredLevel: newParticipant.declaredLevel,
+      });
+
+      if (!res.success) {
+        setAddError(res.error || 'Error al añadir el participante');
+      } else {
+        setShowAddParticipant(false);
+        window.location.reload();
+      }
+    } catch (err: any) {
+      setAddError(err?.message || 'Error inesperado');
+    } finally {
+      setAddLoading(false);
     }
   };
 
@@ -466,6 +511,13 @@ export function AdminTournamentClient({
                     Edita datos, modifica nivel/categoría o gestiona bajas con resolución W.O.
                   </span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddParticipant(true)}
+                  className="px-3.5 py-2 rounded-xl gradient-primary text-white text-xs font-bold shadow hover:opacity-90 transition flex items-center gap-1.5 shrink-0"
+                >
+                  ➕ Inscribir Jugador Directo
+                </button>
               </div>
 
               {/* Search bar */}
@@ -966,6 +1018,127 @@ export function AdminTournamentClient({
                 {deleteLoading ? 'Eliminando...' : 'Confirmar Eliminación'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* DIRECT ADD PARTICIPANT MODAL (BYPASS SEGURO) */}
+      {showAddParticipant && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <div>
+                <h3 className="font-extrabold text-base">Inscripción Administrativa Directa</h3>
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  Mesa de Control: Bypass seguro sin verificación por correo
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddParticipant(false)}
+                className="text-[var(--muted-foreground)] hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {addError && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+                {addError}
+              </div>
+            )}
+
+            <form onSubmit={handleAddParticipant} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1">
+                    Nombre Completo *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newParticipant.name}
+                    onChange={(e) => setNewParticipant({ ...newParticipant, name: e.target.value })}
+                    placeholder="Ej. Carlos Alcaraz"
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-xs focus:outline-none focus:border-[var(--primary)]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1">
+                    Nickname (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newParticipant.nickname}
+                    onChange={(e) => setNewParticipant({ ...newParticipant, nickname: e.target.value })}
+                    placeholder="Ej. Charlie"
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-xs focus:outline-none focus:border-[var(--primary)]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1">
+                  Email (Opcional)
+                </label>
+                <input
+                  type="email"
+                  value={newParticipant.email}
+                  onChange={(e) => setNewParticipant({ ...newParticipant, email: e.target.value })}
+                  placeholder="jugador@ejemplo.com"
+                  className="w-full px-3 py-2 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-xs focus:outline-none focus:border-[var(--primary)]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1">
+                    Edad o Fecha Nacimiento
+                  </label>
+                  <input
+                    type="text"
+                    value={newParticipant.birthDateOrAge}
+                    onChange={(e) => setNewParticipant({ ...newParticipant, birthDateOrAge: e.target.value })}
+                    placeholder="Ej. 13 o 2013-05-10"
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-xs focus:outline-none focus:border-[var(--primary)]"
+                  />
+                  <span className="text-[10px] text-[var(--muted-foreground)] mt-0.5 block">
+                    Categoría calculada: <strong className="text-white">{determineAgeCategory(newParticipant.birthDateOrAge) === 'sub14' ? 'Sub-14 (Junior)' : 'Absoluta (+14)'}</strong>
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1">
+                    Nivel Declarado (0-10): {newParticipant.declaredLevel}
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value={newParticipant.declaredLevel}
+                    onChange={(e) => setNewParticipant({ ...newParticipant, declaredLevel: parseFloat(e.target.value) })}
+                    className="w-full accent-[var(--primary)]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border)]">
+                <button
+                  type="button"
+                  onClick={() => setShowAddParticipant(false)}
+                  className="px-4 py-2 rounded-xl bg-[var(--secondary)] text-xs font-semibold hover:bg-[var(--secondary)]/80"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={addLoading || !newParticipant.name.trim()}
+                  className="px-4 py-2 rounded-xl gradient-primary text-white text-xs font-bold shadow-md hover:opacity-90 disabled:opacity-50"
+                >
+                  {addLoading ? 'Inscribiendo...' : 'Confirmar e Inscribir'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

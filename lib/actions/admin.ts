@@ -495,3 +495,168 @@ export async function deleteParticipantAction(
     return { success: false, error: err instanceof Error ? err.message : 'Error eliminando participante' };
   }
 }
+
+export interface AdminAddParticipantInput {
+  tournamentId: string;
+  name: string;
+  nickname?: string;
+  email?: string;
+  birthDateOrAge?: string;
+  declaredLevel?: number;
+  rating?: number;
+}
+
+/**
+ * Admin: Directly add and confirm a participant to a tournament (Bypass Seguro).
+ * Exclusively callable by approved admins / super_admin without email verification.
+ */
+export async function adminAddParticipantAction(
+  input: AdminAddParticipantInput
+): Promise<ActionResponse<{ participantId: string; category: string; rating: number }>> {
+  try {
+    const auth = await verifyAdminUser();
+    if (!auth.authorized) {
+      return { success: false, error: 'Acceso no autorizado. Se requieren permisos de administrador.' };
+    }
+
+    const admin = createAdminClient();
+    const cleanName = input.name.trim();
+    if (!cleanName) {
+      return { success: false, error: 'El nombre del participante no puede estar vacío.' };
+    }
+
+    const cleanNickname = (input.nickname || cleanName).trim();
+    const cleanEmail = input.email ? input.email.trim().toLowerCase() : null;
+    const clampedLevel = Math.max(0, Math.min(10, Number(input.declaredLevel) || 5));
+
+    // Fetch tournament
+    const { data: tournament } = await admin
+      .from('tournaments')
+      .select('*')
+      .eq('id', input.tournamentId)
+      .single();
+
+    if (!tournament) return { success: false, error: 'Torneo no encontrado' };
+
+    const refDate = (tournament as any).start_date || tournament.created_at;
+    const category = input.birthDateOrAge
+      ? determineAgeCategory(input.birthDateOrAge, refDate)
+      : 'plus14';
+
+    // Find or create profile
+    let targetUserId: string | null = null;
+    let initialRating = input.rating ?? 1500;
+
+    if (cleanEmail) {
+      const { data: existingProf } = await admin
+        .from('profiles')
+        .select('id, rating')
+        .ilike('email', cleanEmail)
+        .maybeSingle();
+
+      if (existingProf) {
+        targetUserId = existingProf.id;
+        if (!input.rating && existingProf.rating) {
+          initialRating = Math.round(existingProf.rating);
+        }
+      }
+    }
+
+    if (!targetUserId) {
+      // Also check by name
+      const { data: existingByName } = await admin
+        .from('profiles')
+        .select('id, rating')
+        .ilike('name', cleanName)
+        .maybeSingle();
+
+      if (existingByName) {
+        targetUserId = existingByName.id;
+        if (!input.rating && existingByName.rating) {
+          initialRating = Math.round(existingByName.rating);
+        }
+      }
+    }
+
+    if (!targetUserId) {
+      targetUserId = crypto.randomUUID();
+      await admin.from('profiles').insert({
+        id: targetUserId,
+        name: cleanName,
+        nickname: cleanNickname,
+        email: cleanEmail,
+        category,
+        declared_level: clampedLevel,
+        rating: initialRating,
+        role: 'player',
+        admin_status: 'none',
+      });
+    } else {
+      await admin
+        .from('profiles')
+        .update({
+          nickname: cleanNickname,
+          category,
+          declared_level: clampedLevel,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', targetUserId);
+    }
+
+    // Check if already registered
+    const { data: existingPart } = await admin
+      .from('tournament_participants')
+      .select('user_id')
+      .eq('tournament_id', input.tournamentId)
+      .eq('user_id', targetUserId)
+      .maybeSingle();
+
+    if (existingPart) {
+      return { success: false, error: 'Este participante ya está inscrito en el torneo.' };
+    }
+
+    // Insert directly into tournament_participants
+    const { error: partErr } = await admin
+      .from('tournament_participants')
+      .insert({
+        tournament_id: input.tournamentId,
+        user_id: targetUserId,
+        category,
+        declared_level: clampedLevel,
+      });
+
+    if (partErr) {
+      return { success: false, error: `Error inscribiendo participante: ${partErr.message}` };
+    }
+
+    // Audit log
+    await admin.from('audit_logs').insert({
+      actor_id: auth.userId,
+      action: 'admin_add_participant',
+      entity_type: 'tournament_participants',
+      entity_id: `${input.tournamentId}_${targetUserId}`,
+      new_data: {
+        category,
+        declared_level: clampedLevel,
+        rating: initialRating,
+        direct_admin_enrollment: true,
+      },
+    });
+
+    revalidatePath(`/admin/tournaments/${input.tournamentId}`);
+    revalidatePath(`/t/${tournament.slug}`);
+    revalidatePath('/me');
+    revalidatePath('/player');
+
+    return {
+      success: true,
+      data: {
+        participantId: targetUserId,
+        category,
+        rating: initialRating,
+      },
+    };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Error inesperado añadiendo participante' };
+  }
+}

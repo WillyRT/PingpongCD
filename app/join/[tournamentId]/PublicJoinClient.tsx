@@ -9,6 +9,7 @@ import {
   searchExistingPlayersAction,
   searchHistoricalPlayersAction,
   publicJoinTournamentAction,
+  verifyPlayerRegistrationAction,
   type ExistingPlayerSuggestion,
 } from '@/lib/actions/registration';
 import type { TournamentRow, ProfileRow } from '@/lib/types/database';
@@ -52,6 +53,13 @@ export function PublicJoinClient({
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Verification step state
+  const [step, setStep] = useState<'form' | 'verify'>('form');
+  const [otpCode, setOtpCode] = useState('');
+  const [devCode, setDevCode] = useState<string | null>(null);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
 
   // Calculate provisional preview rating
   const provisionalPreview = Math.round(1100 + (declaredLevel / 10) * (2050 - 1100));
@@ -184,10 +192,123 @@ export function PublicJoinClient({
       if (!res.success) {
         setError(res.error || 'Error al procesar la inscripción');
       } else {
-        setSuccess(true);
+        if (res.data?.requiresVerification) {
+          setStep('verify');
+          if (res.data.devCode) {
+            setDevCode(res.data.devCode);
+          }
+        } else {
+          setSuccess(true);
+        }
       }
     });
   };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerifyError(null);
+    if (!otpCode || otpCode.trim().length < 6) {
+      setVerifyError('Por favor, introduce el código completo de 6 dígitos.');
+      return;
+    }
+
+    setVerifyLoading(true);
+    try {
+      const res = await verifyPlayerRegistrationAction({
+        email,
+        code: otpCode.trim(),
+        tournamentId: tournament.id,
+      });
+
+      if (!res.success) {
+        setVerifyError(res.error || 'Error verificando el código');
+      } else {
+        setSuccess(true);
+      }
+    } catch (err: any) {
+      setVerifyError(err?.message || 'Error inesperado verificando el código');
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  if (step === 'verify' && !success) {
+    return (
+      <div className="max-w-md w-full p-8 rounded-2xl bg-[var(--card)] border border-[var(--border)] text-center animate-slide-up shadow-2xl space-y-6">
+        <div className="w-16 h-16 rounded-2xl bg-blue-500/15 border border-blue-500/30 text-blue-400 flex items-center justify-center text-3xl mx-auto shadow-inner">
+          ✉️
+        </div>
+
+        <div>
+          <h2 className="text-2xl font-black mb-1">Verifica tu Correo</h2>
+          <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
+            Hemos enviado un código de seguridad de 6 dígitos a <strong className="text-white">{email}</strong>.
+            Introdúcelo para confirmar la posesión de tu cuenta y activar tu sesión segura.
+          </p>
+        </div>
+
+        {devCode && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 flex items-center justify-between">
+            <span>⚡ Modo Desarrollo (Código OTP):</span>
+            <span className="font-mono font-black text-sm tracking-wider">{devCode}</span>
+          </div>
+        )}
+
+        {verifyError && (
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold">
+            {verifyError}
+          </div>
+        )}
+
+        <form onSubmit={handleVerifyCode} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-[var(--muted-foreground)] mb-2 uppercase tracking-wider">
+              Código de 6 dígitos
+            </label>
+            <input
+              type="text"
+              required
+              maxLength={6}
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder="000000"
+              autoFocus
+              autoComplete="one-time-code"
+              className="w-full text-center tracking-[0.5em] font-mono text-3xl font-black py-3 px-4 rounded-xl bg-[var(--secondary)] border border-[var(--border)] focus:outline-none focus:border-[var(--primary)] text-white shadow-inner"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={verifyLoading || otpCode.trim().length < 6}
+            className="w-full py-3.5 rounded-xl gradient-primary text-white font-bold text-sm shadow-lg hover:opacity-95 transition disabled:opacity-50"
+          >
+            {verifyLoading ? 'Verificando...' : 'Verificar y Confirmar Inscripción'}
+          </button>
+        </form>
+
+        <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              setStep('form');
+              setVerifyError(null);
+            }}
+            className="text-[var(--muted-foreground)] hover:text-white underline"
+          >
+            ← Cambiar datos / email
+          </button>
+          <button
+            type="button"
+            onClick={(e) => handleSubmit(e)}
+            className="text-[var(--primary)] hover:underline font-semibold"
+          >
+            Reenviar código
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (success) {
     return (

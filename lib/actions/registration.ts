@@ -3,11 +3,31 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { cookies, headers } from 'next/headers';
 import { setPlayerSessionCookie } from '@/lib/auth/player-session';
+import {
+  generateVerificationCode,
+  createRegistrationChallengeToken,
+  verifyRegistrationChallengeToken,
+  setRegistrationChallengeCookie,
+  getRegistrationChallengeCookie,
+  clearRegistrationChallengeCookie,
+  type RegistrationChallengeData,
+} from '@/lib/auth/verification-code';
 import { checkSearchRateLimit } from '@/lib/auth/rate-limit';
 import { revalidatePath } from 'next/cache';
 import { determineAgeCategory } from '@/lib/engine/categories';
 import { calculateProvisionalRating, FALLBACK_MIN_ELO, FALLBACK_MAX_ELO } from '@/lib/engine/rating';
 import type { ActionResponse } from './tournament';
+
+export interface PublicJoinResult {
+  requiresVerification: boolean;
+  participantId?: string;
+  email: string;
+  tournamentId: string;
+  tournamentName?: string;
+  category?: string;
+  rating?: number;
+  devCode?: string;
+}
 
 export interface PlayerLookupResult {
   found: boolean;
@@ -308,7 +328,7 @@ export async function publicJoinTournamentAction(formData: {
   declaredLevel: number;
   historicalPlayerId?: string;
   historicalRating?: number;
-}): Promise<ActionResponse<{ participantId: string; category: string; rating: number }>> {
+}): Promise<ActionResponse<PublicJoinResult>> {
   try {
     const admin = createAdminClient();
 
@@ -492,66 +512,256 @@ export async function publicJoinTournamentAction(formData: {
       return { success: false, error: 'Ya estás inscrito en este torneo con este correo electrónico.' };
     }
 
-    // Insert into tournament_participants
-    const { error: partErr } = await admin
-      .from('tournament_participants')
-      .insert({
-        tournament_id: tournament.id,
-        user_id: targetUserId,
-        category,
-        declared_level: clampedLevel,
-      });
+    // Generate cryptographically secure 6-digit OTP verification code
+    const verificationCode = generateVerificationCode();
 
-    if (partErr) {
-      return { success: false, error: `Error en la inscripción: ${partErr.message}` };
+    // Create and sign registration challenge token (HMAC-SHA256)
+    const challengeData: Omit<RegistrationChallengeData, 'exp'> = {
+      email: cleanEmail,
+      code: verificationCode,
+      tournamentId: tournament.id,
+      playerId: targetUserId,
+      name: formData.name.trim(),
+      category,
+      declaredLevel: clampedLevel,
+      assignedRating,
+    };
+
+    const challengeToken = await createRegistrationChallengeToken(challengeData);
+    await setRegistrationChallengeCookie(challengeToken);
+
+    // Persist in registration_verifications table in DB for multi-device support
+    try {
+      await admin.from('registration_verifications').insert({
+        email: cleanEmail,
+        code: verificationCode,
+        tournament_id: tournament.id,
+        player_id: targetUserId,
+        metadata: {
+          name: formData.name.trim(),
+          category,
+          declared_level: clampedLevel,
+          rating: assignedRating,
+        },
+        expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      });
+    } catch {
+      // Challenge cookie serves as standalone fallback
     }
 
-    // Set cryptographically signed session cookie for the player
-    await setPlayerSessionCookie({
-      playerId: targetUserId,
-      email: cleanEmail,
-      tournamentId: tournament.id,
-    });
+    // Trigger Supabase Auth OTP email
+    try {
+      await admin.auth.signInWithOtp({
+        email: cleanEmail,
+        options: {
+          data: {
+            tournament_id: tournament.id,
+            tournament_name: tournament.name,
+            code: verificationCode,
+          },
+        },
+      });
+    } catch {
+      // Ignored if email provider not configured
+    }
 
-    // Also persist legacy identifier cookies for compatibility
-    const cookieStore = await cookies();
-    cookieStore.set('tourneymaster_player_id', targetUserId, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 60, // 60 days
-      path: '/',
-    });
-    cookieStore.set('tourneymaster_player_name', formData.name.trim(), {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 60,
-      path: '/',
-    });
-
-    await admin.from('audit_logs').insert({
-      actor_id: targetUserId,
-      action: 'public_join_tournament',
-      entity_type: 'tournament_participants',
-      entity_id: `${tournament.id}_${targetUserId}`,
-      new_data: { category, declared_level: clampedLevel, rating: assignedRating },
-    });
-
-    revalidatePath(`/join/${formData.tournamentIdOrSlug}`);
-    revalidatePath(`/t/${tournament.slug}`);
-    revalidatePath(`/admin/tournaments/${tournament.id}`);
-    revalidatePath('/player');
+    // In non-production environments, log the OTP code to console
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[TourneyMaster OTP] Código de verificación para ${cleanEmail}: ${verificationCode}`);
+    }
 
     return {
       success: true,
       data: {
+        requiresVerification: true,
         participantId: targetUserId,
+        email: cleanEmail,
+        tournamentId: tournament.id,
+        tournamentName: tournament.name,
         category,
         rating: assignedRating,
+        devCode: process.env.NODE_ENV !== 'production' ? verificationCode : undefined,
       },
     };
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : 'Error inesperado' };
+  }
+}
+
+/**
+ * Public: Verify 6-digit email possession code and finalize tournament registration.
+ * Validates the OTP code, confirms participant in tournament_participants,
+ * and issues the cryptographically signed session cookie with strict flags.
+ */
+export async function verifyPlayerRegistrationAction(formData: {
+  email: string;
+  code: string;
+  tournamentId: string;
+}): Promise<ActionResponse<{ participantId: string; category: string; rating: number }>> {
+  try {
+    const cleanEmail = formData.email.trim().toLowerCase();
+    const cleanCode = formData.code.trim();
+    const cleanTournamentId = formData.tournamentId.trim();
+
+    if (!cleanCode || cleanCode.length < 6) {
+      return { success: false, error: 'Por favor, introduce el código de 6 dígitos completo.' };
+    }
+
+    const admin = createAdminClient();
+
+    // 1. Verify via Signed Challenge Cookie
+    const challengeCookie = await getRegistrationChallengeCookie();
+    let verifiedData: RegistrationChallengeData | null = null;
+
+    if (challengeCookie) {
+      const cookieRes = await verifyRegistrationChallengeToken(
+        challengeCookie,
+        cleanCode,
+        cleanEmail,
+        cleanTournamentId
+      );
+      if (cookieRes.valid && cookieRes.data) {
+        verifiedData = cookieRes.data;
+      }
+    }
+
+    // 2. Fallback: Verify via registration_verifications table in DB
+    if (!verifiedData) {
+      const { data: dbRecords } = await admin
+        .from('registration_verifications')
+        .select('*')
+        .ilike('email', cleanEmail)
+        .eq('tournament_id', cleanTournamentId)
+        .eq('code', cleanCode)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const dbRecord = dbRecords?.[0];
+      if (dbRecord) {
+        verifiedData = {
+          email: dbRecord.email,
+          code: dbRecord.code,
+          tournamentId: dbRecord.tournament_id,
+          playerId: dbRecord.player_id,
+          name: dbRecord.metadata?.name || 'Jugador',
+          category: dbRecord.metadata?.category || 'plus14',
+          declaredLevel: dbRecord.metadata?.declared_level ?? 5,
+          assignedRating: dbRecord.metadata?.rating ?? 1500,
+          exp: Math.floor(new Date(dbRecord.expires_at).getTime() / 1000),
+        };
+      }
+    }
+
+    if (!verifiedData) {
+      return {
+        success: false,
+        error: 'El código de verificación es incorrecto o ha expirado. Por favor, solicita uno nuevo.',
+      };
+    }
+
+    // Check if tournament exists
+    const { data: tournament } = await admin
+      .from('tournaments')
+      .select('*')
+      .eq('id', cleanTournamentId)
+      .single();
+
+    if (!tournament) {
+      return { success: false, error: 'Torneo no encontrado' };
+    }
+
+    // Check if already registered
+    const { data: existingParticipant } = await admin
+      .from('tournament_participants')
+      .select('user_id')
+      .eq('tournament_id', cleanTournamentId)
+      .eq('user_id', verifiedData.playerId)
+      .maybeSingle();
+
+    if (!existingParticipant) {
+      // Confirm registration in tournament_participants
+      const { error: partErr } = await admin
+        .from('tournament_participants')
+        .insert({
+          tournament_id: cleanTournamentId,
+          user_id: verifiedData.playerId,
+          category: verifiedData.category,
+          declared_level: verifiedData.declaredLevel,
+        });
+
+      if (partErr && partErr.code !== '23505') {
+        return { success: false, error: `Error confirmando inscripción: ${partErr.message}` };
+      }
+    }
+
+    // NOW and ONLY NOW: Issue the signed session cookie (7-day maxAge, httpOnly, secure)
+    await setPlayerSessionCookie({
+      playerId: verifiedData.playerId,
+      email: cleanEmail,
+      tournamentId: cleanTournamentId,
+      issuedAt: Math.floor(Date.now() / 1000),
+    });
+
+    // Also persist legacy identifier cookies for compatibility
+    const cookieStore = await cookies();
+    cookieStore.set('tourneymaster_player_id', verifiedData.playerId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
+    });
+    cookieStore.set('tourneymaster_player_name', verifiedData.name, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
+    });
+
+    // Clear challenge cookie
+    await clearRegistrationChallengeCookie();
+
+    // Clean up used verification codes in DB
+    try {
+      await admin
+        .from('registration_verifications')
+        .delete()
+        .eq('tournament_id', cleanTournamentId)
+        .ilike('email', cleanEmail);
+    } catch {
+      // Ignore
+    }
+
+    // Audit log
+    await admin.from('audit_logs').insert({
+      actor_id: verifiedData.playerId,
+      action: 'verified_public_join_tournament',
+      entity_type: 'tournament_participants',
+      entity_id: `${cleanTournamentId}_${verifiedData.playerId}`,
+      new_data: {
+        category: verifiedData.category,
+        rating: verifiedData.assignedRating,
+        email_verified: true,
+      },
+    });
+
+    revalidatePath(`/join/${cleanTournamentId}`);
+    revalidatePath(`/t/${tournament.slug}`);
+    revalidatePath(`/admin/tournaments/${cleanTournamentId}`);
+    revalidatePath('/player');
+    revalidatePath('/me');
+
+    return {
+      success: true,
+      data: {
+        participantId: verifiedData.playerId,
+        category: verifiedData.category,
+        rating: verifiedData.assignedRating,
+      },
+    };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Error verificando código' };
   }
 }

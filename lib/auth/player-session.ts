@@ -4,18 +4,27 @@ export interface PlayerSessionPayload {
   playerId: string;
   email: string;
   tournamentId?: string;
+  issuedAt?: number; // Unix timestamp in seconds
+  iat?: number;
   exp: number; // Unix timestamp in seconds
 }
 
 export const PLAYER_SESSION_COOKIE = 'tourneymaster_session';
 
-function getSigningSecret(): string {
-  return (
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    'tourneymaster-secure-hmac-fallback-key-2026-xyz'
-  );
+export const PLAYER_SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  path: '/',
+  maxAge: 60 * 60 * 24 * 7, // 7 days
+};
+
+export function getSigningSecret(): string {
+  const secret = process.env.SESSION_SECRET || process.env.HMAC_SECRET;
+  if (!secret) {
+    throw new Error('SESSION_SECRET environment variable is required for HMAC session signing and verification');
+  }
+  return secret;
 }
 
 /**
@@ -106,16 +115,21 @@ export async function computeSignature(data: string, secret = getSigningSecret()
 
 /**
  * Creates a cryptographically signed session token for a public player.
+ * Defaults to 7-day expiration per strict security configuration.
  */
 export async function createPlayerSessionToken(
-  data: { playerId: string; email: string; tournamentId?: string },
-  expiresInSeconds: number = 60 * 60 * 24 * 60 // 60 days
+  data: { playerId: string; email: string; tournamentId?: string; issuedAt?: number },
+  expiresInSeconds: number = 60 * 60 * 24 * 7 // 7 days
 ): Promise<string> {
-  const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + expiresInSeconds;
+  const issuedAt = data.issuedAt ?? now;
   const payload: PlayerSessionPayload = {
     playerId: data.playerId,
     email: data.email.toLowerCase().trim(),
     tournamentId: data.tournamentId,
+    issuedAt,
+    iat: issuedAt,
     exp,
   };
 
@@ -176,20 +190,18 @@ export async function verifyPlayerSessionToken(
 
 /**
  * Sets the signed session cookie in HTTP response headers.
+ * Uses strict cookie flags: httpOnly: true, secure in production, sameSite: 'lax', 7-day maxAge.
  */
 export async function setPlayerSessionCookie(
-  data: { playerId: string; email: string; tournamentId?: string },
-  expiresInSeconds: number = 60 * 60 * 24 * 60
+  data: { playerId: string; email: string; tournamentId?: string; issuedAt?: number },
+  expiresInSeconds: number = 60 * 60 * 24 * 7 // 7 days
 ): Promise<string> {
   const token = await createPlayerSessionToken(data, expiresInSeconds);
   const cookieStore = await cookies();
 
   cookieStore.set(PLAYER_SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    ...PLAYER_SESSION_COOKIE_OPTIONS,
     maxAge: expiresInSeconds,
-    path: '/',
   });
 
   return token;
