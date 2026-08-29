@@ -57,12 +57,11 @@ describe('Slug Normalization and Dual Route Resolution', () => {
     expect(res3.queryValue).toBe('prueba-ping-pong-2027');
   });
 
-  it('allows registration for draft, registration, and ongoing/group_stage, but not finished', () => {
+  it('allows registration for canonical draft, registration, and group_stage, but not finished', () => {
     expect(isRegistrationAllowed('draft')).toBe(true);
     expect(isRegistrationAllowed('DRAFT')).toBe(true);
     expect(isRegistrationAllowed('registration')).toBe(true);
     expect(isRegistrationAllowed('group_stage')).toBe(true);
-    expect(isRegistrationAllowed('ongoing')).toBe(true);
     expect(isRegistrationAllowed('finished')).toBe(false);
     expect(isRegistrationAllowed('completed')).toBe(false);
   });

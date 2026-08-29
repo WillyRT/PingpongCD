@@ -170,7 +170,7 @@ describe('Security, RBAC, Idempotency & Negative Testing Suite', () => {
       };
     }
 
-    it('should cleanly finalize an ongoing tournament on first call', () => {
+    it('should cleanly finalize a bracket_stage tournament on first call', () => {
       const initial: TournamentState = {
         id: 't-1',
         status: 'bracket_stage',

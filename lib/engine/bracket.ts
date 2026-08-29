@@ -127,6 +127,9 @@ export function generateCrossGroupMatchups(
   return matchups;
 }
 
+import { generatePlayoffsWithByes } from './playoffs';
+export { generatePlayoffsWithByes };
+
 /**
  * Generate a complete bracket structure.
  * 
@@ -145,7 +148,18 @@ export function generateBracket(
     throw new Error('Need at least 2 qualifiers for a bracket');
   }
 
+  // If not a power of 2 or uneven qualifiers (3, 5, 6, 7), use playoffs with Byes
   const bracketSize = calculateBracketSize(totalQualifiers);
+  if (
+    totalQualifiers !== bracketSize ||
+    !(
+      (groupCount === 4 && qualifiersPerGroup === 2 && totalQualifiers === 8) ||
+      (groupCount === 2 && qualifiersPerGroup === 2 && totalQualifiers === 4)
+    )
+  ) {
+    return generatePlayoffsWithByes(qualifiers);
+  }
+
   const totalRounds = Math.log2(bracketSize);
   const matches: BracketMatch[] = [];
   let matchCounter = 0;

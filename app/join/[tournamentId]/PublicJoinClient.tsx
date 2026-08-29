@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useRef } from 'react';
 import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
 import { determineAgeCategory, getCategoryLabel } from '@/lib/engine/categories';
@@ -40,6 +40,7 @@ export function PublicJoinClient({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedHistoricalPlayer, setSelectedHistoricalPlayer] = useState<HistoricalPlayerSuggestion | null>(null);
   const [isSearchingPlayers, setIsSearchingPlayers] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [category, setCategory] = useState<AgeCategory>(() => {
     return determineAgeCategory(Number(birthDateOrAge) || 20);
@@ -64,7 +65,7 @@ export function PublicJoinClient({
     }
   };
 
-  const handleNameChange = async (val: string) => {
+  const handleNameChange = (val: string) => {
     setName(val);
     if (selectedHistoricalPlayer && val.trim() !== selectedHistoricalPlayer.name) {
       setSelectedHistoricalPlayer(null);
@@ -73,26 +74,33 @@ export function PublicJoinClient({
       setLookupMessage(null);
     }
 
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
     if (val.trim().length >= 2) {
       setIsSearchingPlayers(true);
-      try {
-        const res = await searchHistoricalPlayersAction(val);
-        if (res.success && res.data && res.data.length > 0) {
-          setSuggestions(res.data);
-          setShowSuggestions(true);
-        } else {
+      searchTimeoutRef.current = setTimeout(async () => {
+        try {
+          const res = await searchHistoricalPlayersAction(val);
+          if (res.success && res.data && res.data.length > 0) {
+            setSuggestions(res.data);
+            setShowSuggestions(true);
+          } else {
+            setSuggestions([]);
+            setShowSuggestions(false);
+          }
+        } catch {
           setSuggestions([]);
           setShowSuggestions(false);
+        } finally {
+          setIsSearchingPlayers(false);
         }
-      } catch {
-        setSuggestions([]);
-        setShowSuggestions(false);
-      } finally {
-        setIsSearchingPlayers(false);
-      }
+      }, 300);
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
+      setIsSearchingPlayers(false);
     }
   };
 
@@ -102,10 +110,6 @@ export function PublicJoinClient({
     setHistoricalRating(s.rating);
     setIsLockedByHistory(true);
     setShowSuggestions(false);
-
-    if (s.emailFull && !email) {
-      setEmail(s.emailFull);
-    }
 
     if (s.category) {
       setCategory(s.category);

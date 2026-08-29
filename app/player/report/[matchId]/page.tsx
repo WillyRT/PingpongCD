@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getPlayerSession } from '@/lib/auth/player-session';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ScoreReportClient } from './ScoreReportClient';
@@ -11,8 +12,10 @@ export default async function ReportScorePage({ params }: PageProps) {
   const { matchId } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const playerSession = await getPlayerSession();
 
-  if (!user) redirect(`/login?redirectTo=/player/report/${matchId}`);
+  const effectiveUserId = user?.id || playerSession?.playerId;
+  if (!effectiveUserId) redirect(`/login?redirectTo=/player/report/${matchId}`);
 
   // Fetch match details
   const { data: match, error } = await supabase
@@ -24,8 +27,8 @@ export default async function ReportScorePage({ params }: PageProps) {
   if (error || !match) notFound();
 
   // Verify player is participant
-  const isPlayer1 = match.player1_id === user.id;
-  const isPlayer2 = match.player2_id === user.id;
+  const isPlayer1 = match.player1_id === effectiveUserId;
+  const isPlayer2 = match.player2_id === effectiveUserId;
 
   if (!isPlayer1 && !isPlayer2) {
     redirect('/player');
@@ -48,7 +51,7 @@ export default async function ReportScorePage({ params }: PageProps) {
       <div className="max-w-md mx-auto px-4 py-8">
         <ScoreReportClient
           match={match}
-          currentUserId={user.id}
+          currentUserId={effectiveUserId}
           isPlayer1={isPlayer1}
         />
       </div>

@@ -1,7 +1,9 @@
 'use server';
 
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
+import { setPlayerSessionCookie } from '@/lib/auth/player-session';
+import { checkSearchRateLimit } from '@/lib/auth/rate-limit';
 import { revalidatePath } from 'next/cache';
 import { determineAgeCategory } from '@/lib/engine/categories';
 import { calculateProvisionalRating, FALLBACK_MIN_ELO, FALLBACK_MAX_ELO } from '@/lib/engine/rating';
@@ -21,7 +23,6 @@ export interface HistoricalPlayerSuggestion {
   canonicalName: string;
   matchedAlias?: string;
   emailMasked: string;
-  emailFull?: string;
   rating: number;
   matchesPlayed: number;
   category?: 'sub14' | 'plus14';
@@ -42,7 +43,7 @@ function obfuscateEmail(email?: string | null): string {
 
 /**
  * Public: Search historical players and aliases with their latest Glicko-2 ratings.
- * Used by the Name autocomplete input in the registration form.
+ * Protected with IP rate limiting (max 15 req/min) and masked emails for privacy.
  */
 export async function searchHistoricalPlayersAction(
   query: string
@@ -51,6 +52,25 @@ export async function searchHistoricalPlayersAction(
     const trimmed = query.trim();
     if (!trimmed || trimmed.length < 2) {
       return { success: true, data: [] };
+    }
+
+    // Rate-limiting check per client IP
+    let clientIp = '127.0.0.1';
+    try {
+      const headersList = await headers();
+      clientIp =
+        headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+        headersList.get('x-real-ip')?.trim() ||
+        '127.0.0.1';
+    } catch {
+      // Ignored outside active HTTP request context (e.g. tests)
+    }
+
+    if (!checkSearchRateLimit(clientIp, 15, 60_000)) {
+      return {
+        success: false,
+        error: 'Demasiadas consultas de búsqueda. Espera un minuto antes de volver a intentarlo.',
+      };
     }
 
     const admin = createAdminClient();
@@ -96,7 +116,6 @@ export async function searchHistoricalPlayersAction(
           name: p.canonical_name,
           canonicalName: p.canonical_name,
           emailMasked: obfuscateEmail(p.email),
-          emailFull: p.email ?? undefined,
           rating,
           matchesPlayed,
           category: p.category as any,
@@ -117,7 +136,6 @@ export async function searchHistoricalPlayersAction(
           canonicalName: p.canonical_name,
           matchedAlias: a.alias,
           emailMasked: obfuscateEmail(p.email),
-          emailFull: p.email ?? undefined,
           rating,
           matchesPlayed,
           category: p.category as any,
@@ -271,7 +289,7 @@ export async function publicJoinTournamentAction(formData: {
     }
 
     const st = (tournament.status || '').toLowerCase();
-    if (st !== 'registration' && st !== 'draft' && st !== 'group_stage' && st !== 'ongoing') {
+    if (st !== 'registration' && st !== 'draft' && st !== 'group_stage') {
       return { success: false, error: 'Las inscripciones para este torneo están cerradas' };
     }
 
@@ -412,7 +430,14 @@ export async function publicJoinTournamentAction(formData: {
       return { success: false, error: `Error en la inscripción: ${partErr.message}` };
     }
 
-    // Set persistent session cookies for the player
+    // Set cryptographically signed session cookie for the player
+    await setPlayerSessionCookie({
+      playerId: targetUserId,
+      email: cleanEmail,
+      tournamentId: tournament.id,
+    });
+
+    // Also persist legacy identifier cookies for compatibility
     const cookieStore = await cookies();
     cookieStore.set('tourneymaster_player_id', targetUserId, {
       httpOnly: true,

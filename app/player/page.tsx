@@ -1,15 +1,14 @@
 import { createClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
+import { getPlayerSession } from '@/lib/auth/player-session';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 
 export default async function PlayerDashboard() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const cookieStore = await cookies();
-  const cookiePlayerId = cookieStore.get('tourneymaster_player_id')?.value;
+  const playerSession = await getPlayerSession();
 
-  const targetPlayerId = user?.id || cookiePlayerId;
+  const targetPlayerId = user?.id || playerSession?.playerId;
   if (!targetPlayerId) redirect('/login');
 
   // Fetch player profile

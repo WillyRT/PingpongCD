@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { verifyPlayerSessionToken } from '../auth/player-session';
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -46,7 +47,8 @@ export async function updateSession(request: NextRequest) {
 
   // IMPORTANT: Use getUser() NOT getSession() for security
   const { data: { user } } = await supabase.auth.getUser();
-  const playerCookie = request.cookies.get('tourneymaster_player_id')?.value;
+  const sessionToken = request.cookies.get('tourneymaster_session')?.value;
+  const verifiedPlayerSession = await verifyPlayerSessionToken(sessionToken);
 
   if (isProtectedAdmin && !user) {
     const url = request.nextUrl.clone();
@@ -55,7 +57,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (isProtectedPlayer && !user && !playerCookie) {
+  if (isProtectedPlayer && !user && !verifiedPlayerSession) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('redirectTo', request.nextUrl.pathname);

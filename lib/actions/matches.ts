@@ -1,6 +1,7 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { getPlayerSession } from '@/lib/auth/player-session';
 import { revalidatePath } from 'next/cache';
 import { reportScoreSchema } from '@/lib/validation/schemas';
 import { validateScoreForStage, determineWinner } from '@/lib/engine/scoring';
@@ -12,6 +13,7 @@ import type { ActionResponse } from './tournament';
 /**
  * Player: Report match score.
  * Transitions match from pending -> submitted.
+ * Authenticated via Supabase Auth or cryptographically signed player session cookie.
  */
 export async function reportScoreAction(input: {
   matchId: string;
@@ -20,13 +22,16 @@ export async function reportScoreAction(input: {
 }): Promise<ActionResponse> {
   try {
     const parsed = reportScoreSchema.parse(input);
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const admin = createAdminClient();
+    const userClient = await createClient();
+    const { data: { user } } = await userClient.auth.getUser();
+    const playerSession = await getPlayerSession();
 
-    if (!user) return { success: false, error: 'Unauthorized' };
+    const callerId = user?.id || playerSession?.playerId;
+    if (!callerId) return { success: false, error: 'Unauthorized: Session required' };
 
     // Fetch match
-    const { data: match, error: mError } = await supabase
+    const { data: match, error: mError } = await admin
       .from('matches')
       .select('*')
       .eq('id', parsed.matchId)
@@ -35,7 +40,7 @@ export async function reportScoreAction(input: {
     if (mError || !match) return { success: false, error: 'Match not found' };
 
     // Must be a participant
-    if (match.player1_id !== user.id && match.player2_id !== user.id) {
+    if (match.player1_id !== callerId && match.player2_id !== callerId) {
       return { success: false, error: 'Only participants can report match score' };
     }
 
@@ -55,27 +60,27 @@ export async function reportScoreAction(input: {
     }
 
     // Record report
-    await supabase.from('match_reports').insert({
+    await admin.from('match_reports').insert({
       match_id: parsed.matchId,
-      reported_by: user.id,
+      reported_by: callerId,
       score_player1: parsed.scorePlayer1,
       score_player2: parsed.scorePlayer2,
     });
 
     // Update match state to submitted
-    await supabase
+    await admin
       .from('matches')
       .update({
         score_player1: parsed.scorePlayer1,
         score_player2: parsed.scorePlayer2,
-        reported_by: user.id,
+        reported_by: callerId,
         status: 'submitted',
       })
       .eq('id', parsed.matchId);
 
     // Audit log
-    await supabase.from('audit_logs').insert({
-      actor_id: user.id,
+    await admin.from('audit_logs').insert({
+      actor_id: callerId,
       action: 'report_score',
       entity_type: 'matches',
       entity_id: parsed.matchId,
@@ -97,23 +102,31 @@ export async function reportScoreAction(input: {
 
 /**
  * Opponent / Admin: Confirm match score.
- * Atomic server-side operation that:
- * 1. Verifies authentication & participant eligibility
- * 2. Updates match to confirmed
- * 3. Updates Glicko-2 ratings for both players
- * 4. Checks group completion status and unlocks standings if complete
- * 5. Advances winner in bracket if knockout match
- * 6. Emits audit log
+ * Atomic server-side operation protected against unauthorized execution:
+ * 1. Verifies caller is:
+ *    a) Admin/SuperAdmin with approved status via Supabase Auth
+ *    b) Match participant via verified session token, matching player1 or player2
+ * 2. Rejects self-confirmation (reporter cannot confirm own report unless admin)
+ * 3. Invokes database updates via service_role client
+ * 4. Advances winner in bracket if knockout match
+ * 5. Updates Glicko-2 ratings for both players
+ * 6. Checks group completion status and unlocks standings if complete
+ * 7. Emits audit log
  */
 export async function confirmMatchAction(matchId: string): Promise<ActionResponse> {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const admin = createAdminClient();
+    const userClient = await createClient();
+    const { data: { user } } = await userClient.auth.getUser();
+    const playerSession = await getPlayerSession();
 
-    if (!user) return { success: false, error: 'Unauthorized' };
+    const callerId = user?.id || playerSession?.playerId;
+    if (!callerId) {
+      return { success: false, error: 'Unauthorized: Session required' };
+    }
 
     // Fetch match
-    const { data: match, error: mError } = await supabase
+    const { data: match, error: mError } = await admin
       .from('matches')
       .select('*')
       .eq('id', matchId)
@@ -129,18 +142,32 @@ export async function confirmMatchAction(matchId: string): Promise<ActionRespons
       return { success: false, error: 'Match is not awaiting confirmation' };
     }
 
-    // Must be opponent or admin
-    const isReporter = match.reported_by === user.id;
-    if (isReporter) {
-      return { success: false, error: 'Reporter cannot confirm their own report' };
+    // Verify admin role if user session is present
+    let isAdmin = false;
+    if (user) {
+      const { data: profile } = await admin
+        .from('profiles')
+        .select('role, admin_status')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (
+        profile?.admin_status === 'approved' &&
+        (profile.role === 'admin' || profile.role === 'super_admin')
+      ) {
+        isAdmin = true;
+      }
     }
 
-    const isPlayer = match.player1_id === user.id || match.player2_id === user.id;
-    if (!isPlayer) {
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-      if (profile?.role !== 'admin' && profile?.role !== 'super_admin') {
-        return { success: false, error: 'Not authorized to confirm this match' };
-      }
+    // Authorization checks
+    const isPlayer = match.player1_id === callerId || match.player2_id === callerId;
+    if (!isAdmin && !isPlayer) {
+      return { success: false, error: 'Not authorized to confirm this match' };
+    }
+
+    const isReporter = match.reported_by === callerId;
+    if (isReporter && !isAdmin) {
+      return { success: false, error: 'Reporter cannot confirm their own report' };
     }
 
     const winnerNumber = determineWinner(match.score_player1 ?? 0, match.score_player2 ?? 0);
@@ -148,8 +175,8 @@ export async function confirmMatchAction(matchId: string): Promise<ActionRespons
     const loserId = winnerNumber === 1 ? match.player2_id : match.player1_id;
 
     // Fetch players to evaluate upset
-    const { data: pWinner } = await supabase.from('profiles').select('*').eq('id', winnerId).single();
-    const { data: pLoser } = await supabase.from('profiles').select('*').eq('id', loserId).single();
+    const { data: pWinner } = await admin.from('profiles').select('*').eq('id', winnerId).single();
+    const { data: pLoser } = await admin.from('profiles').select('*').eq('id', loserId).single();
 
     const evalResult = evaluateExpectedScore(
       winnerNumber === 1 ? (pWinner?.rating ?? 1500) : (pLoser?.rating ?? 1500),
@@ -159,18 +186,33 @@ export async function confirmMatchAction(matchId: string): Promise<ActionRespons
     );
 
     // 1. Confirm match
-    await supabase
+    await admin
       .from('matches')
       .update({
         status: 'confirmed',
         winner_id: winnerId,
         is_upset: evalResult.isUpset,
-        confirmed_by: user.id,
+        confirmed_by: callerId,
         confirmed_at: new Date().toISOString(),
       })
       .eq('id', matchId);
 
-    // 2. Update Glicko-2 ratings for both players
+    // 2. Advance winner in bracket if knockout match
+    if (match.next_match_id && match.next_slot) {
+      if (match.next_slot === 1) {
+        await admin
+          .from('matches')
+          .update({ player1_id: winnerId, updated_at: new Date().toISOString() })
+          .eq('id', match.next_match_id);
+      } else {
+        await admin
+          .from('matches')
+          .update({ player2_id: winnerId, updated_at: new Date().toISOString() })
+          .eq('id', match.next_match_id);
+      }
+    }
+
+    // 3. Update Glicko-2 ratings for both players
     if (pWinner && pLoser) {
       const [updatedWinner, updatedLoser] = updateRatingsForMatch(
         {
@@ -187,14 +229,14 @@ export async function confirmMatchAction(matchId: string): Promise<ActionRespons
         }
       );
 
-      await supabase.from('profiles').update({
+      await admin.from('profiles').update({
         rating: updatedWinner.rating,
         rating_deviation: updatedWinner.ratingDeviation,
         volatility: updatedWinner.volatility,
         matches_played: updatedWinner.matchesPlayed,
       }).eq('id', winnerId);
 
-      await supabase.from('profiles').update({
+      await admin.from('profiles').update({
         rating: updatedLoser.rating,
         rating_deviation: updatedLoser.ratingDeviation,
         volatility: updatedLoser.volatility,
@@ -202,14 +244,14 @@ export async function confirmMatchAction(matchId: string): Promise<ActionRespons
       }).eq('id', loserId);
     }
 
-    // 3. Check group completion if group stage
+    // 4. Check group completion if group stage
     if (match.stage === 'group' && match.group_id) {
-      const { data: groupMatches } = await supabase
+      const { data: groupMatches } = await admin
         .from('matches')
         .select('status')
         .eq('group_id', match.group_id);
 
-      const { data: grp } = await supabase
+      const { data: grp } = await admin
         .from('tournament_groups')
         .select('*')
         .eq('id', match.group_id)
@@ -222,7 +264,7 @@ export async function confirmMatchAction(matchId: string): Promise<ActionRespons
         const disputed = groupMatches.filter((m) => m.status === 'disputed').length;
 
         if (isGroupComplete(confirmed, grp.expected_matches, pending, submitted, disputed)) {
-          await supabase
+          await admin
             .from('tournament_groups')
             .update({
               status: 'completed',
@@ -233,17 +275,17 @@ export async function confirmMatchAction(matchId: string): Promise<ActionRespons
       }
     }
 
-    // 4. If knockout stage, check if final match -> finish tournament
+    // 5. If knockout stage, check if final match -> finish tournament
     if (match.stage === 'final') {
-      await supabase
+      await admin
         .from('tournaments')
         .update({ status: 'finished' })
         .eq('id', match.tournament_id);
     }
 
-    // 5. Audit log
-    await supabase.from('audit_logs').insert({
-      actor_id: user.id,
+    // 6. Audit log
+    await admin.from('audit_logs').insert({
+      actor_id: callerId,
       action: 'confirm_match',
       entity_type: 'matches',
       entity_id: matchId,
@@ -262,15 +304,19 @@ export async function confirmMatchAction(matchId: string): Promise<ActionRespons
 /**
  * Player: Dispute match score.
  * Transitions match from submitted -> disputed.
+ * Accessible to participants via Supabase Auth or signed player session.
  */
 export async function disputeMatchAction(matchId: string, notes?: string): Promise<ActionResponse> {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const admin = createAdminClient();
+    const userClient = await createClient();
+    const { data: { user } } = await userClient.auth.getUser();
+    const playerSession = await getPlayerSession();
 
-    if (!user) return { success: false, error: 'Unauthorized' };
+    const callerId = user?.id || playerSession?.playerId;
+    if (!callerId) return { success: false, error: 'Unauthorized: Session required' };
 
-    const { data: match, error: mError } = await supabase
+    const { data: match, error: mError } = await admin
       .from('matches')
       .select('*')
       .eq('id', matchId)
@@ -279,21 +325,21 @@ export async function disputeMatchAction(matchId: string, notes?: string): Promi
     if (mError || !match) return { success: false, error: 'Match not found' };
 
     // Must be the opponent
-    if (match.reported_by === user.id) {
+    if (match.reported_by === callerId) {
       return { success: false, error: 'Cannot dispute your own report' };
     }
 
-    if (match.player1_id !== user.id && match.player2_id !== user.id) {
+    if (match.player1_id !== callerId && match.player2_id !== callerId) {
       return { success: false, error: 'Only participants can dispute a match' };
     }
 
-    await supabase
+    await admin
       .from('matches')
       .update({ status: 'disputed' })
       .eq('id', matchId);
 
-    await supabase.from('audit_logs').insert({
-      actor_id: user.id,
+    await admin.from('audit_logs').insert({
+      actor_id: callerId,
       action: 'dispute_match',
       entity_type: 'matches',
       entity_id: matchId,
