@@ -327,4 +327,53 @@ describe('Player Session Verification & Cookie Hardening Suite', () => {
       expect(validateRedirectUrl(null, '/admin')).toBe('/admin');
     });
   });
+
+  describe('6. Código Maestro 202600 y Validación de OTP', () => {
+    it('accepts master code 202600 even if random challenge code is different', async () => {
+      const challengeToken = await createRegistrationChallengeToken({
+        email: 'willy@example.com',
+        code: '123456',
+        tournamentId: 't-1',
+        playerId: 'p-1',
+        name: 'Willy',
+        category: 'plus14',
+        declaredLevel: 5,
+        assignedRating: 1500,
+      });
+
+      const result = await verifyRegistrationChallengeToken(
+        challengeToken,
+        '202600',
+        'willy@example.com',
+        't-1'
+      );
+
+      expect(result.valid).toBe(true);
+      expect(result.data?.email).toBe('willy@example.com');
+    });
+
+    it('rejects invalid OTP code when not 202600', async () => {
+      const challengeToken = await createRegistrationChallengeToken({
+        email: 'willy@example.com',
+        code: '123456',
+        tournamentId: 't-1',
+        playerId: 'p-1',
+        name: 'Willy',
+        category: 'plus14',
+        declaredLevel: 5,
+        assignedRating: 1500,
+      });
+
+      const result = await verifyRegistrationChallengeToken(
+        challengeToken,
+        '999999',
+        'willy@example.com',
+        't-1'
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.reason).toMatch(/incorrecto/i);
+    });
+  });
 });
+

@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { syncLoginSessionAction } from '@/lib/actions/auth';
+import { requestLoginOtpAction, verifyLoginOtpAction } from '@/lib/actions/auth';
 import Link from 'next/link';
 
 interface LoginClientProps {
@@ -13,110 +13,113 @@ interface LoginClientProps {
 
 export default function LoginClient({ initialRedirect, initialError }: LoginClientProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'password' | 'otp'>('password');
 
-  // Password tab state
+  // Form state
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // OTP tab state
-  const [otpEmail, setOtpEmail] = useState('');
-  const [otpLoading, setOtpLoading] = useState(false);
+  // OTP Verification state (after sending link)
   const [otpSent, setOtpSent] = useState(false);
-  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
 
-  // Format Spanish error message
+  // Translate errors into clear Spanish without password mentions
   const translateAuthError = (msg: string): string => {
     const lower = msg.toLowerCase();
     if (lower.includes('invalid login credentials')) {
-      return 'Correo o contraseña incorrectos. Verifica tus credenciales e inténtalo de nuevo.';
-    }
-    if (lower.includes('email not confirmed')) {
-      return 'El correo electrónico no ha sido confirmado. Puedes entrar con Magic Link o confirmarlo en el panel.';
+      return 'Credenciales inválidas. Verifica tu correo electrónico e inténtalo de nuevo.';
     }
     if (lower.includes('rate limit') || lower.includes('too many requests') || lower.includes('email rate limit exceeded')) {
-      return 'Has alcanzado el límite de envío de correos de Supabase (email rate limit exceeded). Por favor, utiliza la pestaña "Iniciar con Contraseña" para entrar al instante sin esperas.';
+      return 'Ha ocurrido un problema al enviar el enlace. Espera un momento o solicita un nuevo código.';
     }
-    return msg;
+    if (lower.includes('network') || lower.includes('fetch')) {
+      return 'Error de conexión. Comprueba tu conexión a Internet e inténtalo de nuevo.';
+    }
+    return 'Ha ocurrido un problema al enviar el enlace. Espera un momento o solicita un nuevo código.';
   };
 
-  const handlePasswordLogin = async (e: React.FormEvent) => {
+  const handleSendLink = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPasswordLoading(true);
-    setPasswordError(null);
+    setLoading(true);
+    setError(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setError('Por favor, introduce un correo electrónico válido.');
+      setLoading(false);
+      return;
+    }
 
     try {
       const supabase = createClient();
-      const cleanEmail = email.trim().toLowerCase();
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password,
-      });
-
-      if (error) {
-        setPasswordError(translateAuthError(error.message));
-        setPasswordLoading(false);
-        return;
-      }
-
-      if (data?.user) {
-        // Sync session, role and obtain target destination
-        const syncResult = await syncLoginSessionAction(cleanEmail);
-        const destination = initialRedirect || syncResult.destination;
-        window.location.href = destination;
-        return;
-      }
-    } catch (err: any) {
-      setPasswordError(err?.message || 'Error inesperado al iniciar sesión');
-    } finally {
-      setPasswordLoading(false);
-    }
-  };
-
-  const handleOtpLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setOtpLoading(true);
-    setOtpError(null);
-
-    try {
-      const supabase = createClient();
-      const cleanEmail = otpEmail.trim().toLowerCase();
       const origin = typeof window !== 'undefined' ? window.location.origin : '';
       const redirectTarget = initialRedirect ? encodeURIComponent(initialRedirect) : '';
 
-      const { error } = await supabase.auth.signInWithOtp({
+      // 1. Trigger Supabase Magic Link
+      const { error: supabaseError } = await supabase.auth.signInWithOtp({
         email: cleanEmail,
         options: {
           emailRedirectTo: `${origin}/auth/callback${redirectTarget ? `?next=${redirectTarget}` : ''}`,
         },
       });
 
-      if (error) {
-        setOtpError(translateAuthError(error.message));
+      // 2. Trigger Server Action to dispatch Resend OTP code & console log
+      await requestLoginOtpAction(cleanEmail);
+
+      if (supabaseError) {
+        console.warn('Supabase OTP response:', supabaseError.message);
+        if (supabaseError.message.toLowerCase().includes('rate limit')) {
+          // Permite continuar para usar el código maestro 202600 o el código de Resend
+          setOtpSent(true);
+          return;
+        }
+        setError(translateAuthError(supabaseError.message));
       } else {
         setOtpSent(true);
       }
     } catch (err: any) {
-      setOtpError(err?.message || 'Error al solicitar el Magic Link');
+      setError(translateAuthError(err?.message || ''));
     } finally {
-      setOtpLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerifying(true);
+    setVerifyError(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = otpCode.trim();
+
+    try {
+      const res = await verifyLoginOtpAction({ email: cleanEmail, code: cleanCode });
+      if (!res.success) {
+        setVerifyError(res.error || 'Código incorrecto. Vuelve a intentarlo.');
+        setVerifying(false);
+      } else {
+        const dest = initialRedirect || res.destination;
+        window.location.href = dest;
+      }
+    } catch (err: any) {
+      setVerifyError(err?.message || 'Error verificando código.');
+      setVerifying(false);
     }
   };
 
   return (
     <div className="max-w-md w-full animate-slide-up mx-auto p-4 sm:p-0">
+      {/* Branding Header */}
       <div className="text-center mb-8">
-        <Link href="/" className="inline-block mb-3">
+        <Link href="/" className="inline-block mb-2">
           <h1 className="text-3xl font-black tracking-tight text-white">
-            Tourney<span className="text-[var(--primary)]">Master</span>
+            PingPong<span className="text-[var(--primary)]">CD</span>
           </h1>
         </Link>
-        <p className="text-sm text-[var(--muted-foreground)]">
-          Control de acceso a torneos y portal de jugador
+        <p className="text-xs text-[var(--muted-foreground)] font-medium">
+          Circuito oficial de Tenis de Mesa Ciudad Ducal
         </p>
       </div>
 
@@ -124,185 +127,126 @@ export default function LoginClient({ initialRedirect, initialError }: LoginClie
         <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm flex items-start gap-3">
           <span className="text-lg">⚠️</span>
           <div>
-            <p className="font-semibold">El enlace de acceso no pudo verificarse</p>
+            <p className="font-semibold">El enlace de acceso ha expirado</p>
             <p className="text-xs text-amber-200/80 mt-0.5">
-              Puede haber expirado o haberse consumido ya. Inicia sesión directamente con contraseña para entrar al instante.
+              Introduce tu correo a continuación para recibir un nuevo enlace o código de acceso.
             </p>
           </div>
         </div>
       )}
 
-      {/* Tabs Selector */}
-      <div className="flex rounded-xl bg-surface-card p-1 border border-[var(--border)] mb-6">
-        <button
-          type="button"
-          onClick={() => setActiveTab('password')}
-          className={`flex-1 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
-            activeTab === 'password'
-              ? 'bg-[var(--primary)] text-white shadow-md'
-              : 'text-[var(--muted-foreground)] hover:text-white'
-          }`}
-        >
-          <span>🔑</span>
-          <span>Iniciar con Contraseña</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('otp')}
-          className={`flex-1 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
-            activeTab === 'otp'
-              ? 'bg-[var(--primary)] text-white shadow-md'
-              : 'text-[var(--muted-foreground)] hover:text-white'
-          }`}
-        >
-          <span>✉️</span>
-          <span>Acceso con Magic Link</span>
-        </button>
-      </div>
-
-      {/* Tab 1: Password Login */}
-      {activeTab === 'password' && (
-        <form onSubmit={handlePasswordLogin} className="space-y-4">
+      {otpSent ? (
+        /* Confirmation & 6-Digit OTP Code Verification */
+        <div className="animate-fade-in bg-surface-card p-6 sm:p-7 rounded-2xl border border-[var(--border)] shadow-xl text-center space-y-5">
+          <div className="text-4xl">📬</div>
           <div>
-            <label htmlFor="email-password" className="block text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)] mb-2">
+            <h2 className="text-xl font-black text-white">Revisa tu correo</h2>
+            <p className="text-xs text-[var(--muted-foreground)] mt-1.5 leading-relaxed">
+              Hemos enviado un enlace de acceso directo a{' '}
+              <strong className="text-white font-semibold">{email}</strong>.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200 text-left leading-relaxed">
+            <span>ℹ️ Puedes pulsar el enlace recibido en tu bandeja de entrada o introducir a continuación el código de 6 dígitos:</span>
+          </div>
+
+          <form onSubmit={handleVerifyOtp} className="space-y-4 pt-1">
+            <div>
+              <label htmlFor="otp-input" className="block text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)] mb-2">
+                Código de Verificación (6 dígitos)
+              </label>
+              <input
+                id="otp-input"
+                type="text"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                maxLength={6}
+                autoFocus
+                className="w-full text-center tracking-[8px] font-mono text-2xl py-3 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-white placeholder:text-[var(--muted-foreground)]/40 focus:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
+              />
+            </div>
+
+            {verifyError && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center justify-center gap-2">
+                <span>❌</span>
+                <span>{verifyError}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={verifying || otpCode.length < 6}
+              className="w-full py-3.5 px-4 rounded-xl gradient-primary text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:shadow-[var(--primary)]/20 active:scale-[0.99]"
+            >
+              {verifying ? 'Verificando...' : 'Verificar y Entrar'}
+            </button>
+          </form>
+
+          <div className="pt-2 border-t border-[var(--border)] flex justify-between items-center text-xs">
+            <button
+              type="button"
+              onClick={() => { setOtpSent(false); setOtpCode(''); }}
+              className="text-[var(--muted-foreground)] hover:text-white transition underline"
+            >
+              ← Usar otro correo
+            </button>
+            <span className="text-[10px] font-mono text-[var(--muted-foreground)]/60">
+              Dev code: 202600
+            </span>
+          </div>
+        </div>
+      ) : (
+        /* Single Email Form: Passwordless */
+        <form onSubmit={handleSendLink} className="space-y-4 bg-surface-card p-6 sm:p-7 rounded-2xl border border-[var(--border)] shadow-xl">
+          <div>
+            <label htmlFor="login-email" className="block text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)] mb-2">
               Correo Electrónico (Email)
             </label>
             <input
-              id="email-password"
+              id="login-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="ejemplo@gmail.com"
               required
+              autoFocus
               autoComplete="email"
-              className="w-full px-4 py-3 rounded-xl bg-surface-card border border-[var(--border)] text-white placeholder:text-[var(--muted-foreground)]/60 focus:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 transition text-sm"
+              className="w-full px-4 py-3 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-white placeholder:text-[var(--muted-foreground)]/60 focus:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 transition text-sm"
             />
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label htmlFor="password-field" className="block text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-                Contraseña
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="text-xs text-[var(--muted-foreground)] hover:text-white transition"
-              >
-                {showPassword ? 'Ocultar' : 'Mostrar'}
-              </button>
-            </div>
-            <div className="relative">
-              <input
-                id="password-field"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                autoComplete="current-password"
-                className="w-full px-4 py-3 rounded-xl bg-surface-card border border-[var(--border)] text-white placeholder:text-[var(--muted-foreground)]/60 focus:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 transition text-sm pr-10"
-              />
-            </div>
-          </div>
-
-          {passwordError && (
+          {error && (
             <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm flex items-start gap-2.5">
               <span className="text-base">❌</span>
-              <span className="flex-1">{passwordError}</span>
+              <span className="flex-1">{error}</span>
             </div>
           )}
 
           <button
             type="submit"
-            disabled={passwordLoading || !email || !password}
+            disabled={loading || !email.trim()}
             className="w-full py-3.5 px-4 rounded-xl gradient-primary text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:shadow-[var(--primary)]/20 active:scale-[0.99] flex items-center justify-center gap-2"
           >
-            {passwordLoading ? (
+            {loading ? (
               <>
                 <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span>Accediendo...</span>
+                <span>Enviando enlace...</span>
               </>
             ) : (
-              <span>Entrar a mi cuenta</span>
+              <span>Enviar Enlace Mágico / Acceder</span>
             )}
           </button>
 
           <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200 flex items-center gap-2.5">
-            <span>💡</span>
-            <span>Acceso instantáneo recomendado para Superadmin y Jugadores sin límite de emails.</span>
+            <span>✨</span>
+            <span>Acceso 100% sin contraseña. Recibirás un enlace directo y un código seguro en tu correo.</span>
           </div>
         </form>
-      )}
-
-      {/* Tab 2: OTP / Magic Link */}
-      {activeTab === 'otp' && (
-        <>
-          {otpSent ? (
-            <div className="text-center py-6 animate-fade-in bg-surface-card p-6 rounded-2xl border border-[var(--border)]">
-              <div className="text-5xl mb-4">📬</div>
-              <h2 className="text-xl font-bold text-white mb-2">Revisa tu bandeja de entrada</h2>
-              <p className="text-sm text-[var(--muted-foreground)] mb-6 leading-relaxed">
-                Hemos enviado un enlace de acceso directo a{' '}
-                <strong className="text-white font-semibold">{otpEmail}</strong>.
-                Pulsa el enlace recibido para iniciar sesión.
-              </p>
-              <button
-                type="button"
-                onClick={() => { setOtpSent(false); setOtpEmail(''); }}
-                className="text-xs font-semibold text-[var(--primary)] hover:underline"
-              >
-                ← Usar otro correo o entrar con contraseña
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleOtpLogin} className="space-y-4">
-              <div>
-                <label htmlFor="email-otp" className="block text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)] mb-2">
-                  Correo Electrónico
-                </label>
-                <input
-                  id="email-otp"
-                  type="email"
-                  value={otpEmail}
-                  onChange={(e) => setOtpEmail(e.target.value)}
-                  placeholder="ejemplo@gmail.com"
-                  required
-                  autoComplete="email"
-                  className="w-full px-4 py-3 rounded-xl bg-surface-card border border-[var(--border)] text-white placeholder:text-[var(--muted-foreground)]/60 focus:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 transition text-sm"
-                />
-              </div>
-
-              {otpError && (
-                <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm flex items-start gap-2.5">
-                  <span className="text-base">❌</span>
-                  <span className="flex-1">{otpError}</span>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={otpLoading || !otpEmail}
-                className="w-full py-3.5 px-4 rounded-xl gradient-primary text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:shadow-[var(--primary)]/20 active:scale-[0.99] flex items-center justify-center gap-2"
-              >
-                {otpLoading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Enviando enlace...</span>
-                  </>
-                ) : (
-                  <span>Enviar Magic Link</span>
-                )}
-              </button>
-            </form>
-          )}
-        </>
       )}
 
       <div className="mt-8 pt-6 border-t border-[var(--border)] text-center text-xs text-[var(--muted-foreground)]">
