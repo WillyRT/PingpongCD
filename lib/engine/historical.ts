@@ -198,6 +198,114 @@ export function calculateNameSimilarity(nameA: string, nameB: string): number {
   return 0.3;
 }
 
+export const NAME_NORMALIZATION_MAP: Record<string, string> = {
+  // Alias y apodos específicos confirmados
+  'jeipi': 'Juan Pedro González',
+  'juan pedro': 'Juan Pedro González',
+  'rick': 'Ricardo Mengíbar',
+  'rick (7)': 'Ricardo Mengíbar',
+  'ricardo mengibar': 'Ricardo Mengíbar',
+  'pablis': 'Pablo Asín',
+  'pabis (10)': 'Pablo Asín',
+  'pabis': 'Pablo Asín',
+  
+  // Variantes Pablo Cascón / Gascón
+  'pablo cascon': 'Pablo Cascón',
+  'pablo cascon (10)': 'Pablo Cascón',
+  'pablo gascon': 'Pablo Cascón',
+  'pablo gascon (10)': 'Pablo Cascón',
+  
+  // Diminutivos y variaciones familiares
+  'nacho escudero': 'Ignacio Escudero',
+  'fer escudero': 'Fernando Escudero',
+  'fernando': 'Fernando Escudero', // En contexto de actas 2026 GD
+  'javi benito': 'Javier Benito',
+  'jaime benito': 'Javier Benito',
+  'javi clemente': 'Javier Clemente',
+  'santi teran': 'Santiago Terán',
+  'santi teheran': 'Santiago Terán',
+  'santiago teran': 'Santiago Terán',
+  'isa planas': 'Isabel Planas',
+  'isabel planas': 'Isabel Planas',
+  'miguel dr': 'Miguel de Rodrigo',
+  'manu de rodrigo': 'Miguel de Rodrigo',
+  'teran padre': 'Javier Terán',
+  'javier teran': 'Javier Terán',
+  'javier fdz': 'Javier Fernández',
+  'gonzalez lopez': 'Gonzalo López',
+  'gonzález lópez': 'Gonzalo López',
+  'gonzalo lopez': 'Gonzalo López',
+  
+  // Nombres simples en actas de categorías infantiles
+  'max': 'Max Cordero',
+  'giles': 'Giles Corballe',
+  'oliver': 'Oliver Rivero',
+  'nico alonso': 'Nicolás Alonso',
+  'milo herran': 'Milo de la Herrán',
+  'milo de la herran': 'Milo de la Herrán',
+  'alvaro herran': 'Álvaro de la Herrán',
+  'alvaro de la herran': 'Álvaro de la Herrán',
+  'alvaro barbera': 'Álvaro Barbera',
+  'alvaro guerra': 'Álvaro Guerra',
+  'alvaro sarmiento': 'Álvaro Sarmiento',
+  'alvaro herrero': 'Álvaro Herrero',
+  
+  // Erratas tipográficas y actas específicas
+  'isaac perid': 'Isaac Peris',
+  'miguel angel': 'Miguel Ángel Martínez',
+  'miguel angel martinez': 'Miguel Ángel Martínez',
+  'ignacio': 'Ignacio Betherod', // En contexto de 2026 GA
+  
+  // Limpieza de números de siembra de Challonge
+  'jorge clemente (7)': 'Jorge Clemente',
+  'jose olalla (6)': 'José Félix Olalla',
+  'lucia marin (6)': 'Lucía Marín',
+  'xabier barrero (3)': 'Xabier Barrero',
+  'jorge de la herran (3)': 'Jorge de la Herrán',
+  'pablo olalla (10)': 'Pablo Olalla',
+  'carlos rebellon (7)': 'Carlos Rebellón',
+  'hector horcajada (8) (invitation pending)': 'Héctor Horcajada',
+  'hector horcajada (8) (invi': 'Héctor Horcajada',
+  'carlos ross (8)': 'Carlos Ross',
+  'gonzalo penalver (3)': 'Gonzalo Peñalver',
+  'gonzalo peñalver (3)': 'Gonzalo Peñalver',
+  'sergio rebellon (5)': 'Sergio Rebellón',
+  'ivan horcajada (8)': 'Iván Horcajada',
+  
+  // Perfiles independientes mantenidos tal cual
+  'juan': 'Juan',
+  'josechu': 'Josechu',
+  'luli': 'Luli',
+  'chamorro': 'Chamorro',
+  'chamorro (9)': 'Chamorro',
+  'lucas planas': 'Lucas Planas',
+};
+
+/**
+ * Resolve a raw player name to its canonical name using NAME_NORMALIZATION_MAP,
+ * metadata extraction, and alias normalization.
+ */
+export function resolveCanonicalPlayerName(rawName: string): string {
+  const trimmed = rawName.trim();
+  const lowerTrimmed = trimmed.toLowerCase();
+  if (NAME_NORMALIZATION_MAP[lowerTrimmed]) {
+    return NAME_NORMALIZATION_MAP[lowerTrimmed]!;
+  }
+
+  const { cleanName } = extractPlayerMetadata(trimmed);
+  const lowerClean = cleanName.toLowerCase();
+  if (NAME_NORMALIZATION_MAP[lowerClean]) {
+    return NAME_NORMALIZATION_MAP[lowerClean]!;
+  }
+
+  const norm = normalizeAlias(cleanName);
+  if (NAME_NORMALIZATION_MAP[norm]) {
+    return NAME_NORMALIZATION_MAP[norm]!;
+  }
+
+  return cleanName;
+}
+
 /**
  * Resolve a player name to a canonical player ID with confidence and alias tracking.
  */
@@ -209,10 +317,13 @@ export function resolveOrCreatePlayer(
   idGenerator: () => string = () => typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '00000000-0000-4000-8000-' + Math.random().toString(16).slice(2, 14).padStart(12, '0')
 ): { player: CanonicalPlayer; alias: PlayerAlias; isNew: boolean } {
   const { cleanName, sourceSeed, sourceStatus } = extractPlayerMetadata(rawName);
+  const canonicalTarget = resolveCanonicalPlayerName(rawName);
   const norm = normalizeAlias(cleanName);
+  const canonicalNorm = normalizeAlias(canonicalTarget);
+  const lowerRaw = rawName.toLowerCase().trim();
 
   // 1. Check direct alias mapping
-  const existingAlias = aliasesMap.get(norm);
+  const existingAlias = aliasesMap.get(norm) || aliasesMap.get(lowerRaw);
   if (existingAlias) {
     const existingPlayer = playersMap.get(existingAlias.playerId);
     if (existingPlayer) {
@@ -220,10 +331,11 @@ export function resolveOrCreatePlayer(
     }
   }
 
-  // 2. Check if normalized name matches any canonical player name
+  // 2. Check if canonical target or normalized name matches any canonical player name
   for (const player of playersMap.values()) {
-    const sim = calculateNameSimilarity(player.canonicalName, cleanName);
-    if (sim >= 0.9) {
+    const pNorm = normalizeAlias(player.canonicalName);
+    const sim = calculateNameSimilarity(player.canonicalName, canonicalTarget);
+    if (pNorm === canonicalNorm || pNorm === norm || sim >= 0.9) {
       const now = new Date().toISOString();
       const alias: PlayerAlias = {
         id: idGenerator(),
@@ -235,10 +347,11 @@ export function resolveOrCreatePlayer(
         sourceSeed,
         sourceStatus,
         confidence: sim,
-        resolutionStatus: sim === 1.0 ? 'confirmed' : 'probable',
+        resolutionStatus: 'confirmed',
         createdAt: now,
       };
       aliasesMap.set(norm, alias);
+      aliasesMap.set(lowerRaw, alias);
       return { player, alias, isNew: false };
     }
   }
@@ -248,7 +361,7 @@ export function resolveOrCreatePlayer(
   const now = new Date().toISOString();
   const newPlayer: CanonicalPlayer = {
     id: newPlayerId,
-    canonicalName: cleanName,
+    canonicalName: canonicalTarget,
     userId: null,
     createdAt: now,
     updatedAt: now,
@@ -270,6 +383,7 @@ export function resolveOrCreatePlayer(
 
   playersMap.set(newPlayerId, newPlayer);
   aliasesMap.set(norm, alias);
+  aliasesMap.set(lowerRaw, alias);
 
   return { player: newPlayer, alias, isNew: true };
 }

@@ -49,11 +49,112 @@ export const MASTER_PLAYER_NAMES = [
   'Ana Benito'
 ];
 
+export const NAME_NORMALIZATION_MAP = {
+  // Alias y apodos específicos confirmados
+  'jeipi': 'Juan Pedro González',
+  'juan pedro': 'Juan Pedro González',
+  'rick': 'Ricardo Mengíbar',
+  'rick (7)': 'Ricardo Mengíbar',
+  'ricardo mengibar': 'Ricardo Mengíbar',
+  'pablis': 'Pablo Asín',
+  'pabis (10)': 'Pablo Asín',
+  'pabis': 'Pablo Asín',
+  
+  // Variantes Pablo Cascón / Gascón
+  'pablo cascon': 'Pablo Cascón',
+  'pablo cascon (10)': 'Pablo Cascón',
+  'pablo gascon': 'Pablo Cascón',
+  'pablo gascon (10)': 'Pablo Cascón',
+  
+  // Diminutivos y variaciones familiares
+  'nacho escudero': 'Ignacio Escudero',
+  'fer escudero': 'Fernando Escudero',
+  'fernando': 'Fernando Escudero', // En contexto de actas 2026 GD
+  'javi benito': 'Javier Benito',
+  'jaime benito': 'Javier Benito',
+  'javi clemente': 'Javier Clemente',
+  'santi teran': 'Santiago Terán',
+  'santi teheran': 'Santiago Terán',
+  'santiago teran': 'Santiago Terán',
+  'isa planas': 'Isabel Planas',
+  'isabel planas': 'Isabel Planas',
+  'miguel dr': 'Miguel de Rodrigo',
+  'manu de rodrigo': 'Miguel de Rodrigo',
+  'teran padre': 'Javier Terán',
+  'javier teran': 'Javier Terán',
+  'javier fdz': 'Javier Fernández',
+  'gonzalez lopez': 'Gonzalo López',
+  'gonzález lópez': 'Gonzalo López',
+  'gonzalo lopez': 'Gonzalo López',
+  
+  // Nombres simples en actas de categorías infantiles
+  'max': 'Max Cordero',
+  'giles': 'Giles Corballe',
+  'oliver': 'Oliver Rivero',
+  'nico alonso': 'Nicolás Alonso',
+  'milo herran': 'Milo de la Herrán',
+  'milo de la herran': 'Milo de la Herrán',
+  'alvaro herran': 'Álvaro de la Herrán',
+  'alvaro de la herran': 'Álvaro de la Herrán',
+  'alvaro barbera': 'Álvaro Barbera',
+  'alvaro guerra': 'Álvaro Guerra',
+  'alvaro sarmiento': 'Álvaro Sarmiento',
+  'alvaro herrero': 'Álvaro Herrero',
+  
+  // Erratas tipográficas y actas específicas
+  'isaac perid': 'Isaac Peris',
+  'miguel angel': 'Miguel Ángel Martínez',
+  'miguel angel martinez': 'Miguel Ángel Martínez',
+  'ignacio': 'Ignacio Betherod', // En contexto de 2026 GA
+  
+  // Limpieza de números de siembra de Challonge
+  'jorge clemente (7)': 'Jorge Clemente',
+  'jose olalla (6)': 'José Félix Olalla',
+  'lucia marin (6)': 'Lucía Marín',
+  'xabier barrero (3)': 'Xabier Barrero',
+  'jorge de la herran (3)': 'Jorge de la Herrán',
+  'pablo olalla (10)': 'Pablo Olalla',
+  'carlos rebellon (7)': 'Carlos Rebellón',
+  'hector horcajada (8) (invitation pending)': 'Héctor Horcajada',
+  'hector horcajada (8) (invi': 'Héctor Horcajada',
+  'carlos ross (8)': 'Carlos Ross',
+  'gonzalo penalver (3)': 'Gonzalo Peñalver',
+  'gonzalo peñalver (3)': 'Gonzalo Peñalver',
+  'sergio rebellon (5)': 'Sergio Rebellón',
+  'ivan horcajada (8)': 'Iván Horcajada',
+  
+  // Perfiles independientes mantenidos tal cual
+  'juan': 'Juan',
+  'josechu': 'Josechu',
+  'luli': 'Luli',
+  'chamorro': 'Chamorro',
+  'chamorro (9)': 'Chamorro',
+  'lucas planas': 'Lucas Planas',
+};
+
+export function resolveCanonicalPlayerName(rawName) {
+  const trimmed = rawName.trim();
+  const lowerTrimmed = trimmed.toLowerCase();
+  if (NAME_NORMALIZATION_MAP[lowerTrimmed]) {
+    return NAME_NORMALIZATION_MAP[lowerTrimmed];
+  }
+  const clean = trimmed.replace(/\s*\([^)]*\)/g, '').trim();
+  const lowerClean = clean.toLowerCase();
+  if (NAME_NORMALIZATION_MAP[lowerClean]) {
+    return NAME_NORMALIZATION_MAP[lowerClean];
+  }
+  const norm = clean.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+  if (NAME_NORMALIZATION_MAP[norm]) {
+    return NAME_NORMALIZATION_MAP[norm];
+  }
+  return clean;
+}
+
 const SUB14_PLAYERS = new Set([
-  'Claudia Terán', 'Ignacio Betherod', 'Yago Fernández', 'Santi Terán', 'Isa Planas', 'Fernando Planas',
-  'Miguel de Rodrigo', 'Lucas Planas', 'Terán padre', 'Jaime Pérez', 'Miguel Ángel Martínez', 'Gonzalo López',
-  'Javier Fernández', 'Alan Esteban', 'Pablo Benito', 'Marcos Arias', 'Nico Alonso', 'Alejandra Escudero',
-  'Jaime Ros', 'Miguel Ros', 'Ignacio Escudero', 'Milo Herrán', 'Jaime León', 'Javier Ros',
+  'Claudia Terán', 'Ignacio Betherod', 'Yago Fernández', 'Santi Terán', 'Santiago Terán', 'Isa Planas', 'Isabel Planas', 'Fernando Planas',
+  'Miguel de Rodrigo', 'Lucas Planas', 'Terán padre', 'Javier Terán', 'Jaime Pérez', 'Miguel Ángel Martínez', 'Gonzalo López',
+  'Javier Fernández', 'Alan Esteban', 'Pablo Benito', 'Marcos Arias', 'Nico Alonso', 'Nicolás Alonso', 'Alejandra Escudero',
+  'Jaime Ros', 'Miguel Ros', 'Ignacio Escudero', 'Milo Herrán', 'Milo de la Herrán', 'Jaime León', 'Javier Ros',
   'Diego Navarrete', 'Nacho Escudero', 'Gonzalo Cordero', 'Max', 'Max Cordero', 'Juan Pedro Lovelle', 'Jaime España',
   'Nicolás López', 'Álvaro Herrero', 'Juan Aranaz', 'Guillermo Fraile', 'Rafael Tejedor', 'Gabriel Fernández',
   'Jaime Navarrete', 'Álvaro Barbera', 'Pablo Luengo', 'Álvaro Guerra', 'Álvaro de la Herrán', 'Blanca Barbera',
@@ -273,44 +374,52 @@ async function runMasterSeed() {
   await supabase.from('players').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   console.log('Cleared previous historical archive records.');
 
-  // 2. Build and insert 107 canonical players & profiles
-  console.log(`\n👥 Registering ${MASTER_PLAYER_NAMES.length} canonical players & profiles...`);
+  // 2. Build and insert canonical players & profiles with NAME_NORMALIZATION_MAP
+  const canonicalNamesSet = new Set();
+  for (const rawName of MASTER_PLAYER_NAMES) {
+    canonicalNamesSet.add(resolveCanonicalPlayerName(rawName));
+  }
+  for (const name of Object.values(NAME_NORMALIZATION_MAP)) {
+    canonicalNamesSet.add(name);
+  }
+
+  const canonicalPlayerList = Array.from(canonicalNamesSet).sort();
+  console.log(`\n👥 Registering ${canonicalPlayerList.length} canonical players & profiles...`);
   const playerNameToId = new Map();
   const profileRows = [];
   const playerRows = [];
   const aliasRows = [];
 
-  for (const rawName of MASTER_PLAYER_NAMES) {
-    const cleanName = rawName.trim();
-    const playerId = deterministicUUID(`player-${cleanName.toLowerCase()}`);
-    playerNameToId.set(cleanName.toLowerCase(), playerId);
+  for (const canonicalName of canonicalPlayerList) {
+    const playerId = deterministicUUID(`player-${canonicalName.toLowerCase()}`);
+    playerNameToId.set(canonicalName.toLowerCase(), playerId);
 
-    const isSub14 = SUB14_PLAYERS.has(cleanName);
+    const isSub14 = SUB14_PLAYERS.has(canonicalName);
     const category = isSub14 ? 'sub14' : 'plus14';
 
     playerRows.push({
       id: playerId,
-      canonical_name: cleanName,
+      canonical_name: canonicalName,
       user_id: playerId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
 
     aliasRows.push({
-      id: deterministicUUID(`alias-${cleanName.toLowerCase()}`),
+      id: deterministicUUID(`alias-${canonicalName.toLowerCase()}`),
       player_id: playerId,
-      alias: cleanName,
-      normalized_alias: cleanName.toLowerCase(),
-      source_system: 'master_history',
+      alias: canonicalName,
+      normalized_alias: canonicalName.toLowerCase(),
+      source_system: 'canonical',
       confidence: 1.0,
       created_at: new Date().toISOString(),
     });
 
     profileRows.push({
       id: playerId,
-      name: cleanName,
-      nickname: cleanName,
-      email: `${cleanName.toLowerCase().replace(/\s+/g, '.').normalize('NFD').replace(/[\u0300-\u036f]/g, '')}@pingpong.cd`,
+      name: canonicalName,
+      nickname: canonicalName,
+      email: `${canonicalName.toLowerCase().replace(/\s+/g, '.').normalize('NFD').replace(/[\u0300-\u036f]/g, '')}@pingpong.cd`,
       role: 'player',
       admin_status: 'none',
       category,
@@ -321,6 +430,41 @@ async function runMasterSeed() {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
+  }
+
+  // Register all aliases from NAME_NORMALIZATION_MAP
+  for (const [rawAlias, canonicalName] of Object.entries(NAME_NORMALIZATION_MAP)) {
+    const pId = playerNameToId.get(canonicalName.toLowerCase());
+    if (pId) {
+      playerNameToId.set(rawAlias.toLowerCase().trim(), pId);
+      aliasRows.push({
+        id: deterministicUUID(`alias-${rawAlias.toLowerCase().trim()}`),
+        player_id: pId,
+        alias: rawAlias,
+        normalized_alias: rawAlias.toLowerCase().trim(),
+        source_system: 'normalization_map',
+        confidence: 1.0,
+        created_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Also ensure all original MASTER_PLAYER_NAMES map to their canonical IDs
+  for (const rawName of MASTER_PLAYER_NAMES) {
+    const canonical = resolveCanonicalPlayerName(rawName);
+    const pId = playerNameToId.get(canonical.toLowerCase());
+    if (pId) {
+      playerNameToId.set(rawName.toLowerCase().trim(), pId);
+      aliasRows.push({
+        id: deterministicUUID(`alias-${rawName.toLowerCase().trim()}`),
+        player_id: pId,
+        alias: rawName,
+        normalized_alias: rawName.toLowerCase().trim(),
+        source_system: 'master_list',
+        confidence: 1.0,
+        created_at: new Date().toISOString(),
+      });
+    }
   }
 
   // Insert profiles in chunks of 50
@@ -483,8 +627,10 @@ async function runMasterSeed() {
     }
 
     for (const m of t.matches) {
-      const p1Id = playerNameToId.get(m.player1Name.toLowerCase());
-      const p2Id = playerNameToId.get(m.player2Name.toLowerCase());
+      const p1Canonical = resolveCanonicalPlayerName(m.player1Name);
+      const p2Canonical = resolveCanonicalPlayerName(m.player2Name);
+      const p1Id = playerNameToId.get(p1Canonical.toLowerCase()) || playerNameToId.get(m.player1Name.toLowerCase().trim());
+      const p2Id = playerNameToId.get(p2Canonical.toLowerCase()) || playerNameToId.get(m.player2Name.toLowerCase().trim());
       if (!p1Id || !p2Id) {
         console.warn('Unknown player in match:', m.player1Name, 'vs', m.player2Name);
         continue;
@@ -532,8 +678,9 @@ async function runMasterSeed() {
   console.log('\n📈 Computing Glicko-2 Ratings Chronologically across all 8 Tournaments...');
 
   const playerRatings = new Map();
-  for (const name of MASTER_PLAYER_NAMES) {
+  for (const name of canonicalPlayerList) {
     const pId = playerNameToId.get(name.toLowerCase());
+    if (!pId) continue;
     playerRatings.set(pId, {
       rating: DEFAULT_RATING,
       ratingDeviation: DEFAULT_RD,

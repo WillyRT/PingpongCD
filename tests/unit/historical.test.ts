@@ -8,6 +8,8 @@ import {
   replayHistoricalTournaments,
   getPlayerHistoricalTimeline,
   diagnoseHistoricalData,
+  NAME_NORMALIZATION_MAP,
+  resolveCanonicalPlayerName,
   type CanonicalPlayer,
   type PlayerAlias,
   type RawHistoricalMatchRecord,
@@ -84,7 +86,7 @@ describe('Historical Archive Engine', () => {
       const aliasesMap = new Map<string, PlayerAlias>();
 
       const res1 = resolveOrCreatePlayer('Pablo Gascon (10)', playersMap, aliasesMap, 'Torneo 2024', () => 'p-1');
-      expect(res1.player.canonicalName).toBe('Pablo Gascon');
+      expect(res1.player.canonicalName).toBe('Pablo Cascón');
       expect(res1.alias.sourceSeed).toBe(10);
 
       const res2 = resolveOrCreatePlayer('Pablo Gascon', playersMap, aliasesMap, 'Torneo 2025', () => 'p-2');
@@ -230,8 +232,8 @@ describe('Historical Archive Engine', () => {
       expect(replay.processedMatchesCount).toBe(63 + 91 + 59); // 213 complete matches
       expect(replay.missingMatchesCount).toBe(1); // 1 missing match in 2026
 
-      // Pablo Gascon played across multiple seasons -> check his progression
-      const pablo = Array.from(playersMap.values()).find((p) => p.canonicalName === 'Pablo Gascon')!;
+      // Pablo Cascón played across multiple seasons -> check his progression
+      const pablo = Array.from(playersMap.values()).find((p) => p.canonicalName === 'Pablo Cascón')!;
       expect(pablo).toBeDefined();
 
       const timeline = getPlayerHistoricalTimeline(
@@ -274,6 +276,91 @@ describe('Historical Archive Engine', () => {
       const missingIssues = issues.filter((i) => i.type === 'missing_match');
       expect(missingIssues.length).toBe(1);
       expect(missingIssues[0]?.season).toBe(2026);
+    });
+  });
+
+  describe('Canonical Name Normalization Map (NAME_NORMALIZATION_MAP)', () => {
+    it('normalizes confirmed aliases and nicknames', () => {
+      expect(resolveCanonicalPlayerName('jeipi')).toBe('Juan Pedro González');
+      expect(resolveCanonicalPlayerName('juan pedro')).toBe('Juan Pedro González');
+      expect(resolveCanonicalPlayerName('rick')).toBe('Ricardo Mengíbar');
+      expect(resolveCanonicalPlayerName('rick (7)')).toBe('Ricardo Mengíbar');
+      expect(resolveCanonicalPlayerName('ricardo mengibar')).toBe('Ricardo Mengíbar');
+      expect(resolveCanonicalPlayerName('pablis')).toBe('Pablo Asín');
+      expect(resolveCanonicalPlayerName('pabis (10)')).toBe('Pablo Asín');
+      expect(resolveCanonicalPlayerName('pabis')).toBe('Pablo Asín');
+    });
+
+    it('normalizes Pablo Cascón / Gascón variants to Pablo Cascón', () => {
+      expect(resolveCanonicalPlayerName('pablo cascon')).toBe('Pablo Cascón');
+      expect(resolveCanonicalPlayerName('pablo cascon (10)')).toBe('Pablo Cascón');
+      expect(resolveCanonicalPlayerName('pablo gascon')).toBe('Pablo Cascón');
+      expect(resolveCanonicalPlayerName('pablo gascon (10)')).toBe('Pablo Cascón');
+    });
+
+    it('normalizes family variants and diminutives', () => {
+      expect(resolveCanonicalPlayerName('nacho escudero')).toBe('Ignacio Escudero');
+      expect(resolveCanonicalPlayerName('fer escudero')).toBe('Fernando Escudero');
+      expect(resolveCanonicalPlayerName('fernando')).toBe('Fernando Escudero');
+      expect(resolveCanonicalPlayerName('javi benito')).toBe('Javier Benito');
+      expect(resolveCanonicalPlayerName('jaime benito')).toBe('Javier Benito');
+      expect(resolveCanonicalPlayerName('javi clemente')).toBe('Javier Clemente');
+      expect(resolveCanonicalPlayerName('santi teran')).toBe('Santiago Terán');
+      expect(resolveCanonicalPlayerName('santi teheran')).toBe('Santiago Terán');
+      expect(resolveCanonicalPlayerName('santiago teran')).toBe('Santiago Terán');
+      expect(resolveCanonicalPlayerName('isa planas')).toBe('Isabel Planas');
+      expect(resolveCanonicalPlayerName('isabel planas')).toBe('Isabel Planas');
+      expect(resolveCanonicalPlayerName('miguel dr')).toBe('Miguel de Rodrigo');
+      expect(resolveCanonicalPlayerName('manu de rodrigo')).toBe('Miguel de Rodrigo');
+      expect(resolveCanonicalPlayerName('teran padre')).toBe('Javier Terán');
+      expect(resolveCanonicalPlayerName('javier teran')).toBe('Javier Terán');
+      expect(resolveCanonicalPlayerName('javier fdz')).toBe('Javier Fernández');
+      expect(resolveCanonicalPlayerName('gonzalez lopez')).toBe('Gonzalo López');
+      expect(resolveCanonicalPlayerName('gonzález lópez')).toBe('Gonzalo López');
+      expect(resolveCanonicalPlayerName('gonzalo lopez')).toBe('Gonzalo López');
+    });
+
+    it('normalizes junior and single-name records', () => {
+      expect(resolveCanonicalPlayerName('max')).toBe('Max Cordero');
+      expect(resolveCanonicalPlayerName('giles')).toBe('Giles Corballe');
+      expect(resolveCanonicalPlayerName('oliver')).toBe('Oliver Rivero');
+      expect(resolveCanonicalPlayerName('nico alonso')).toBe('Nicolás Alonso');
+      expect(resolveCanonicalPlayerName('milo herran')).toBe('Milo de la Herrán');
+      expect(resolveCanonicalPlayerName('milo de la herran')).toBe('Milo de la Herrán');
+      expect(resolveCanonicalPlayerName('alvaro herran')).toBe('Álvaro de la Herrán');
+      expect(resolveCanonicalPlayerName('alvaro de la herran')).toBe('Álvaro de la Herrán');
+      expect(resolveCanonicalPlayerName('alvaro barbera')).toBe('Álvaro Barbera');
+      expect(resolveCanonicalPlayerName('alvaro guerra')).toBe('Álvaro Guerra');
+      expect(resolveCanonicalPlayerName('alvaro sarmiento')).toBe('Álvaro Sarmiento');
+      expect(resolveCanonicalPlayerName('alvaro herrero')).toBe('Álvaro Herrero');
+    });
+
+    it('normalizes typos and seeds from Challonge', () => {
+      expect(resolveCanonicalPlayerName('isaac perid')).toBe('Isaac Peris');
+      expect(resolveCanonicalPlayerName('miguel angel')).toBe('Miguel Ángel Martínez');
+      expect(resolveCanonicalPlayerName('miguel angel martinez')).toBe('Miguel Ángel Martínez');
+      expect(resolveCanonicalPlayerName('ignacio')).toBe('Ignacio Betherod');
+      expect(resolveCanonicalPlayerName('jorge clemente (7)')).toBe('Jorge Clemente');
+      expect(resolveCanonicalPlayerName('jose olalla (6)')).toBe('José Félix Olalla');
+      expect(resolveCanonicalPlayerName('lucia marin (6)')).toBe('Lucía Marín');
+      expect(resolveCanonicalPlayerName('xabier barrero (3)')).toBe('Xabier Barrero');
+      expect(resolveCanonicalPlayerName('jorge de la herran (3)')).toBe('Jorge de la Herrán');
+      expect(resolveCanonicalPlayerName('pablo olalla (10)')).toBe('Pablo Olalla');
+      expect(resolveCanonicalPlayerName('carlos rebellon (7)')).toBe('Carlos Rebellón');
+      expect(resolveCanonicalPlayerName('hector horcajada (8) (invitation pending)')).toBe('Héctor Horcajada');
+      expect(resolveCanonicalPlayerName('carlos ross (8)')).toBe('Carlos Ross');
+      expect(resolveCanonicalPlayerName('gonzalo penalver (3)')).toBe('Gonzalo Peñalver');
+      expect(resolveCanonicalPlayerName('sergio rebellon (5)')).toBe('Sergio Rebellón');
+      expect(resolveCanonicalPlayerName('ivan horcajada (8)')).toBe('Iván Horcajada');
+    });
+
+    it('preserves standalone distinct profiles', () => {
+      expect(resolveCanonicalPlayerName('juan')).toBe('Juan');
+      expect(resolveCanonicalPlayerName('josechu')).toBe('Josechu');
+      expect(resolveCanonicalPlayerName('luli')).toBe('Luli');
+      expect(resolveCanonicalPlayerName('chamorro')).toBe('Chamorro');
+      expect(resolveCanonicalPlayerName('chamorro (9)')).toBe('Chamorro');
+      expect(resolveCanonicalPlayerName('lucas planas')).toBe('Lucas Planas');
     });
   });
 });

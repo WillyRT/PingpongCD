@@ -7,6 +7,8 @@ import {
 import {
   parseHistoricalRecords,
   replayHistoricalTournaments,
+  NAME_NORMALIZATION_MAP,
+  resolveCanonicalPlayerName,
   type CanonicalPlayer,
   type PlayerAlias,
 } from '../lib/engine/historical';
@@ -64,7 +66,16 @@ async function runMasterSeed() {
   console.log('Previous historical archive cleared cleanly.');
 
   // 2. Consolidate and Register Unique Profiles & Canonical Players
-  console.log(`\n👥 Registering ${MASTER_PLAYER_NAMES.length} canonical players & profiles...`);
+  const canonicalNamesSet = new Set<string>();
+  for (const rawName of MASTER_PLAYER_NAMES) {
+    canonicalNamesSet.add(resolveCanonicalPlayerName(rawName));
+  }
+  for (const name of Object.values(NAME_NORMALIZATION_MAP)) {
+    canonicalNamesSet.add(name);
+  }
+
+  const canonicalPlayerList = Array.from(canonicalNamesSet).sort();
+  console.log(`\n👥 Registering ${canonicalPlayerList.length} canonical players & profiles...`);
   const playersMap = new Map<string, CanonicalPlayer>();
   const aliasesMap = new Map<string, PlayerAlias>();
   const playerNameToId = new Map<string, string>();
@@ -73,39 +84,38 @@ async function runMasterSeed() {
   const playerRows = [];
   const aliasRows = [];
 
-  for (const rawName of MASTER_PLAYER_NAMES) {
-    const cleanName = rawName.trim();
-    const playerId = deterministicUUID(`player-${cleanName.toLowerCase()}`);
-    playerNameToId.set(cleanName.toLowerCase(), playerId);
+  for (const canonicalName of canonicalPlayerList) {
+    const playerId = deterministicUUID(`player-${canonicalName.toLowerCase()}`);
+    playerNameToId.set(canonicalName.toLowerCase(), playerId);
 
-    const isSub14 = SUB14_PLAYERS.has(cleanName);
+    const isSub14 = SUB14_PLAYERS.has(canonicalName);
     const category = isSub14 ? 'sub14' : 'plus14';
 
     const playerObj: CanonicalPlayer = {
       id: playerId,
-      canonicalName: cleanName,
+      canonicalName: canonicalName,
       userId: playerId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     playersMap.set(playerId, playerObj);
 
-    const aliasId = deterministicUUID(`alias-${cleanName.toLowerCase()}`);
+    const aliasId = deterministicUUID(`alias-${canonicalName.toLowerCase()}`);
     const aliasObj: PlayerAlias = {
       id: aliasId,
       playerId,
-      alias: cleanName,
-      normalizedAlias: cleanName.toLowerCase(),
-      sourceSystem: 'master_history',
+      alias: canonicalName,
+      normalizedAlias: canonicalName.toLowerCase(),
+      sourceSystem: 'canonical',
       confidence: 1.0,
       resolutionStatus: 'confirmed',
       createdAt: new Date().toISOString(),
     };
-    aliasesMap.set(cleanName.toLowerCase(), aliasObj);
+    aliasesMap.set(canonicalName.toLowerCase(), aliasObj);
 
     playerRows.push({
       id: playerId,
-      canonical_name: cleanName,
+      canonical_name: canonicalName,
       user_id: playerId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -114,20 +124,20 @@ async function runMasterSeed() {
     aliasRows.push({
       id: aliasId,
       player_id: playerId,
-      alias: cleanName,
-      normalized_alias: cleanName.toLowerCase(),
-      source_system: 'master_history',
+      alias: canonicalName,
+      normalized_alias: canonicalName.toLowerCase(),
+      source_system: 'canonical',
       confidence: 1.0,
       created_at: new Date().toISOString(),
     });
 
     profileRows.push({
       id: playerId,
-      name: cleanName,
-      nickname: cleanName,
-      email: `${cleanName.toLowerCase().replace(/\s+/g, '.').normalize('NFD').replace(/[\u0300-\u036f]/g, '')}@pingpong.cd`,
-      role: 'player',
-      admin_status: 'none',
+      name: canonicalName,
+      nickname: canonicalName,
+      email: `${canonicalName.toLowerCase().replace(/\s+/g, '.').normalize('NFD').replace(/[\u0300-\u036f]/g, '')}@pingpong.cd`,
+      role: 'player' as const,
+      admin_status: 'none' as const,
       category,
       rating: 1500,
       rating_deviation: 350,
@@ -136,6 +146,53 @@ async function runMasterSeed() {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
+  }
+
+  // Register all aliases from NAME_NORMALIZATION_MAP
+  for (const [rawAlias, canonicalName] of Object.entries(NAME_NORMALIZATION_MAP)) {
+    const pId = playerNameToId.get(canonicalName.toLowerCase());
+    if (pId) {
+      playerNameToId.set(rawAlias.toLowerCase().trim(), pId);
+      const aliasId = deterministicUUID(`alias-${rawAlias.toLowerCase().trim()}`);
+      aliasRows.push({
+        id: aliasId,
+        player_id: pId,
+        alias: rawAlias,
+        normalized_alias: rawAlias.toLowerCase().trim(),
+        source_system: 'normalization_map',
+        confidence: 1.0,
+        created_at: new Date().toISOString(),
+      });
+      aliasesMap.set(rawAlias.toLowerCase().trim(), {
+        id: aliasId,
+        playerId: pId,
+        alias: rawAlias,
+        normalizedAlias: rawAlias.toLowerCase().trim(),
+        sourceSystem: 'normalization_map',
+        confidence: 1.0,
+        resolutionStatus: 'confirmed',
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Also ensure all original MASTER_PLAYER_NAMES map to their canonical IDs
+  for (const rawName of MASTER_PLAYER_NAMES) {
+    const canonical = resolveCanonicalPlayerName(rawName);
+    const pId = playerNameToId.get(canonical.toLowerCase());
+    if (pId) {
+      playerNameToId.set(rawName.toLowerCase().trim(), pId);
+      const aliasId = deterministicUUID(`alias-${rawName.toLowerCase().trim()}`);
+      aliasRows.push({
+        id: aliasId,
+        player_id: pId,
+        alias: rawName,
+        normalized_alias: rawName.toLowerCase().trim(),
+        source_system: 'master_list',
+        confidence: 1.0,
+        created_at: new Date().toISOString(),
+      });
+    }
   }
 
   // Batch insert into profiles (in chunks of 50)
