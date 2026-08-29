@@ -1,4 +1,4 @@
-﻿import { Resend } from 'resend';
+import { Resend } from 'resend';
 
 const resendApiKey = process.env.RESEND_API_KEY;
 
@@ -35,14 +35,18 @@ export async function sendOtpEmail(email: string, code: string): Promise<{ succe
     });
 
     if (error) {
-      console.warn('[Resend] Error de envío (sandbox o restricciones):', error.message);
-      // Retornar error sin lanzar excepción para no bloquear la interfaz
+      console.error('❌ [Resend Error]:', error.message);
+      // Si es error de sandbox (solo enviar a tu propio correo), indicarlo en consola:
+      if (error.message.includes('own email address')) {
+        console.warn('⚠️ [Resend Sandbox]: Solo se pueden enviar correos al email titular de la cuenta de Resend hasta verificar un dominio propio.');
+      }
       return { success: false, error: error.message };
+    } else {
+      console.log('✅ [Resend Success]: Correo entregado a Resend con ID:', data?.id);
+      return { success: true };
     }
-
-    return { success: true };
   } catch (err: any) {
-    console.warn('[Resend] Error capturado en el servidor (no bloqueante):', err?.message);
+    console.error('❌ [Resend Exception]:', err?.message || err);
     return { success: false, error: err?.message };
   }
 }

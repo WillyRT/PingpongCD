@@ -51,8 +51,8 @@ describe('Player Session HMAC Cryptographic Security (P1)', () => {
     const token = await createPlayerSessionToken(validData);
     const [payloadB64, signature] = token.split('.');
 
-    // Alter the last character of the signature
-    const forgedSignature = signature!.slice(0, -1) + (signature!.endsWith('A') ? 'B' : 'A');
+    // Alter the first character of the signature to guarantee byte-level modification
+    const forgedSignature = (signature!.startsWith('A') ? 'B' : 'A') + signature!.slice(1);
     const forgedToken = `${payloadB64}.${forgedSignature}`;
 
     expect(await verifyPlayerSessionToken(forgedToken)).toBeNull();
