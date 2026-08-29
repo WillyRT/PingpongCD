@@ -453,7 +453,13 @@ export function AdminTournamentClient({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex gap-2 border-b border-[var(--border)] overflow-x-auto pb-2">
+        <div className="flex gap-2 border-b border-[var(--border)] overflow-x-auto pb-2 items-center">
+          <Link
+            href={`/admin/tournaments/${tournament.id}/stations`}
+            className="px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30 transition flex items-center gap-1.5 shadow-sm"
+          >
+            🏓 Monitor 4 Mesas
+          </Link>
           {[
             { key: 'overview', label: `Participantes (${filteredParticipants.length})` },
             { key: 'groups', label: `Grupos y Clasificación (${filteredGroups.length})` },

@@ -20,6 +20,8 @@ export const viewport: Viewport = {
   themeColor: '#0a0a0f',
 };
 
+import { Navbar } from '@/components/Navbar';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,8 +29,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="min-h-screen bg-[var(--background)] text-[var(--foreground)] antialiased">
-        {children}
+      <body className="min-h-screen bg-[var(--background)] text-[var(--foreground)] antialiased flex flex-col">
+        <Navbar />
+        <div className="flex-1 pb-16 md:pb-0">{children}</div>
       </body>
     </html>
   );

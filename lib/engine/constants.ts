@@ -29,7 +29,17 @@ export const MATCH_STAGES = ['group', 'round_of_16', 'quarterfinal', 'semifinal'
 export type MatchStage = typeof MATCH_STAGES[number];
 
 // Match statuses
-export const MATCH_STATUSES = ['pending', 'submitted', 'confirmed', 'disputed'] as const;
+export const MATCH_STATUSES = [
+  'pending',
+  'submitted',
+  'confirmed',
+  'disputed',
+  'scheduled',
+  'in_progress',
+  'pending_verification',
+  'completed',
+  'walkover',
+] as const;
 export type MatchStatus = typeof MATCH_STATUSES[number];
 
 // Tournament statuses

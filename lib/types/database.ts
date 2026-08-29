@@ -128,7 +128,7 @@ export interface ProfileRow {
   nickname?: string | null;
   email: string | null;
   phone: string | null;
-  role: 'super_admin' | 'admin' | 'player';
+  role: 'super_admin' | 'admin' | 'referee' | 'player';
   admin_status: 'none' | 'pending' | 'approved' | 'rejected';
   declared_level: number | null;
   birth_date: string | null;
@@ -220,7 +220,20 @@ export interface MatchRow {
   winner_id: string | null;
   reported_by: string | null;
   confirmed_by: string | null;
-  status: 'pending' | 'submitted' | 'confirmed' | 'disputed';
+  reported_by_id?: string | null;
+  verified_by_id?: string | null;
+  table_number?: number | null;
+  dispute_reason?: string | null;
+  status:
+    | 'pending'
+    | 'submitted'
+    | 'confirmed'
+    | 'disputed'
+    | 'scheduled'
+    | 'in_progress'
+    | 'pending_verification'
+    | 'completed'
+    | 'walkover';
   win_expectancy_p1: number | null;
   win_expectancy_p2: number | null;
   is_upset: boolean;

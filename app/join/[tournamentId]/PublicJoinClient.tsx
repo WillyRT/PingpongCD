@@ -340,16 +340,16 @@ export function PublicJoinClient({
 
         <div className="flex flex-col gap-3">
           <Link
-            href="/player"
-            className="w-full py-3 rounded-xl gradient-primary text-white font-semibold text-center shadow-lg hover:opacity-95 transition"
+            href="/me"
+            className="w-full py-3.5 rounded-xl gradient-primary text-white font-bold text-center shadow-lg hover:opacity-95 transition flex items-center justify-center gap-2"
           >
-            🏓 Ir a Mi Panel de Jugador
+            👤 Ir a Mi Perfil de Jugador
           </Link>
           <Link
             href={`/t/${tournament.slug}`}
-            className="w-full py-3 rounded-xl bg-[var(--secondary)] text-[var(--foreground)] font-medium text-center hover:bg-[var(--secondary)]/80 transition"
+            className="w-full py-3 rounded-xl bg-[var(--secondary)] text-[var(--foreground)] font-semibold text-center hover:bg-[var(--secondary)]/80 transition flex items-center justify-center gap-2 border border-[var(--border)]"
           >
-            Ver Cuadro del Torneo
+            🏆 Ver el Cuadro del Torneo en Vivo
           </Link>
           <Link
             href="/"

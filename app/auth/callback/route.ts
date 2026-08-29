@@ -78,8 +78,9 @@ export async function GET(request: Request) {
           user.email?.toLowerCase() === 'guillermoriveraterriza@gmail.com' ||
           profile?.role === 'super_admin';
         const isAdmin = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_status === 'approved');
+        const isReferee = profile?.role === 'referee';
 
-        roleDefault = isAdmin ? '/admin' : '/me';
+        roleDefault = (isAdmin || isReferee) ? '/admin' : '/me';
       }
 
       const targetPath = rawRedirect ? validateRedirectUrl(rawRedirect, roleDefault) : roleDefault;

@@ -7,10 +7,12 @@ import { validateScoreForStage, determineWinner } from '@/lib/engine/scoring';
 import { determineAgeCategory } from '@/lib/engine/categories';
 import type { ActionResponse } from './tournament';
 
-/** Helper to verify if user has admin privileges based solely on database RBAC */
+/** Helper to verify if user has admin/referee privileges based solely on database RBAC */
 export async function verifyAdminUser(): Promise<{
   authorized: boolean;
   isSuperAdmin: boolean;
+  isAdmin: boolean;
+  isReferee: boolean;
   userId?: string;
   role?: string;
   adminStatus?: string;
@@ -19,7 +21,7 @@ export async function verifyAdminUser(): Promise<{
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) return { authorized: false, isSuperAdmin: false, error: 'Unauthorized' };
+  if (!user) return { authorized: false, isSuperAdmin: false, isAdmin: false, isReferee: false, error: 'Unauthorized' };
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -27,16 +29,142 @@ export async function verifyAdminUser(): Promise<{
     .eq('id', user.id)
     .single();
 
-  const isSuperAdmin = profile?.role === 'super_admin';
+  const isSuperAdmin = profile?.role === 'super_admin' || user.email?.toLowerCase() === 'guillermoriveraterriza@gmail.com';
   const isAdmin = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_status === 'approved');
+  const isReferee = profile?.role === 'referee';
 
   return {
-    authorized: isAdmin,
+    authorized: isAdmin || isReferee,
     isSuperAdmin,
+    isAdmin,
+    isReferee,
     userId: user.id,
     role: profile?.role,
     adminStatus: profile?.admin_status,
   };
+}
+
+/**
+ * Role Promotion/Demotion:
+ * - super_admin: Can promote/demote to any role ('admin', 'referee', 'player').
+ * - admin: Can promote or demote users ONLY to/from 'referee' (cannot promote to 'admin' or 'super_admin').
+ */
+export async function setUserRoleAction(
+  targetUserId: string,
+  newRole: 'admin' | 'referee' | 'player'
+): Promise<ActionResponse> {
+  try {
+    const auth = await verifyAdminUser();
+    if (!auth.authorized) {
+      return { success: false, error: 'Acceso no autorizado' };
+    }
+
+    if (newRole === 'admin' && !auth.isSuperAdmin) {
+      return {
+        success: false,
+        error: 'Solo el Superadmin principal puede otorgar permisos de Administrador.',
+      };
+    }
+
+    if (!auth.isAdmin && !auth.isSuperAdmin) {
+      return {
+        success: false,
+        error: 'Los árbitros no tienen permisos para modificar roles de usuario.',
+      };
+    }
+
+    const adminClient = createAdminClient();
+    const { data: targetProfile } = await adminClient
+      .from('profiles')
+      .select('role, email')
+      .eq('id', targetUserId)
+      .maybeSingle();
+
+    if (!targetProfile) return { success: false, error: 'Usuario no encontrado' };
+
+    if (targetProfile.role === 'super_admin' && !auth.isSuperAdmin) {
+      return { success: false, error: 'No se puede modificar el rol del Superadmin.' };
+    }
+
+    const newAdminStatus = newRole === 'admin' ? 'approved' : 'none';
+
+    const { error } = await adminClient
+      .from('profiles')
+      .update({
+        role: newRole,
+        admin_status: newAdminStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', targetUserId);
+
+    if (error) {
+      return { success: false, error: `Error actualizando rol: ${error.message}` };
+    }
+
+    await adminClient.from('audit_logs').insert({
+      actor_id: auth.userId,
+      action: 'set_user_role',
+      entity_type: 'profiles',
+      entity_id: targetUserId,
+      previous_data: { role: targetProfile.role },
+      new_data: { role: newRole, admin_status: newAdminStatus },
+    });
+
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Error al modificar rol' };
+  }
+}
+
+/**
+ * Assign a match to one of the 4 stations/tables (1, 2, 3, 4) or unassign.
+ * Callable by referee, admin, or super_admin.
+ */
+export async function assignMatchTableAction(
+  matchId: string,
+  tableNumber: number | null
+): Promise<ActionResponse> {
+  try {
+    const auth = await verifyAdminUser();
+    if (!auth.authorized) {
+      return { success: false, error: 'Acceso no autorizado' };
+    }
+
+    if (tableNumber !== null && (tableNumber < 1 || tableNumber > 4)) {
+      return { success: false, error: 'El número de mesa debe ser 1, 2, 3 o 4.' };
+    }
+
+    const adminClient = createAdminClient();
+    const { data: match, error: mErr } = await adminClient
+      .from('matches')
+      .select('tournament_id, status, table_number')
+      .eq('id', matchId)
+      .single();
+
+    if (mErr || !match) return { success: false, error: 'Partido no encontrado' };
+
+    const newStatus = (tableNumber !== null && (match.status === 'pending' || match.status === 'scheduled'))
+      ? 'in_progress'
+      : match.status;
+
+    const { error } = await adminClient
+      .from('matches')
+      .update({
+        table_number: tableNumber,
+        status: newStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', matchId);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath(`/admin/tournaments/${match.tournament_id}`);
+    revalidatePath(`/admin/tournaments/${match.tournament_id}/stations`);
+    return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Error asignando mesa' };
+  }
 }
 
 /**

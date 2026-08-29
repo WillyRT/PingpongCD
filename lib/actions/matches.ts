@@ -10,12 +10,31 @@ import { evaluateExpectedScore } from '@/lib/engine/analytics';
 import { isGroupComplete } from '@/lib/engine/tournament-state';
 import type { ActionResponse } from './tournament';
 
+/** Helper to check if caller has referee, admin or super_admin permissions */
+async function checkRefereeOrAdmin(userId?: string | null): Promise<boolean> {
+  if (!userId) return false;
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('role, admin_status, email')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (!profile) return false;
+
+  if (profile.email?.toLowerCase() === 'guillermoriveraterriza@gmail.com') return true;
+  if (profile.role === 'super_admin' || profile.role === 'referee') return true;
+  if (profile.role === 'admin' && profile.admin_status === 'approved') return true;
+
+  return false;
+}
+
 /**
- * Player: Report match score.
- * Transitions match from pending -> submitted.
- * Authenticated via Supabase Auth or cryptographically signed player session cookie.
+ * Report match score (Dual-Check initial submission):
+ * - If caller is player1 or player2: saves provisional score, marks status = 'pending_verification' (or 'submitted') and sets reported_by_id.
+ * - If caller is referee/admin/super_admin: directly confirms status = 'completed' (or 'confirmed') and verified_by_id = callerId.
  */
-export async function reportScoreAction(input: {
+export async function reportMatchScoreAction(input: {
   matchId: string;
   scorePlayer1: number;
   scorePlayer2: number;
@@ -28,7 +47,7 @@ export async function reportScoreAction(input: {
     const playerSession = await getPlayerSession();
 
     const callerId = user?.id || playerSession?.playerId;
-    if (!callerId) return { success: false, error: 'Unauthorized: Session required' };
+    if (!callerId) return { success: false, error: 'Acceso no autorizado: Se requiere sesión activa' };
 
     // Fetch match
     const { data: match, error: mError } = await admin
@@ -37,15 +56,17 @@ export async function reportScoreAction(input: {
       .eq('id', parsed.matchId)
       .single();
 
-    if (mError || !match) return { success: false, error: 'Match not found' };
+    if (mError || !match) return { success: false, error: 'Partido no encontrado' };
 
-    // Must be a participant
-    if (match.player1_id !== callerId && match.player2_id !== callerId) {
-      return { success: false, error: 'Only participants can report match score' };
+    if (match.status === 'confirmed' || match.status === 'completed') {
+      return { success: false, error: 'El partido ya ha sido completado y verificado.' };
     }
 
-    if (match.status === 'confirmed') {
-      return { success: false, error: 'Match has already been confirmed' };
+    const isPrivileged = await checkRefereeOrAdmin(callerId);
+    const isParticipant = match.player1_id === callerId || match.player2_id === callerId;
+
+    if (!isPrivileged && !isParticipant) {
+      return { success: false, error: 'Solo los participantes del partido o un árbitro pueden anotar el tanteo.' };
     }
 
     // Validate score according to table tennis rules for this stage
@@ -56,10 +77,15 @@ export async function reportScoreAction(input: {
     );
 
     if (!validation.valid) {
-      return { success: false, error: validation.reason || 'Invalid score' };
+      return { success: false, error: validation.reason || 'Puntuación no válida' };
     }
 
-    // Record report
+    // If caller is referee/admin, execute immediate completion
+    if (isPrivileged) {
+      return await finalizeAndConfirmMatch(admin, match, parsed.scorePlayer1, parsed.scorePlayer2, callerId, true);
+    }
+
+    // Otherwise, player report -> save provisional pending_verification / submitted
     await admin.from('match_reports').insert({
       match_id: parsed.matchId,
       reported_by: callerId,
@@ -67,18 +93,18 @@ export async function reportScoreAction(input: {
       score_player2: parsed.scorePlayer2,
     });
 
-    // Update match state to submitted
     await admin
       .from('matches')
       .update({
         score_player1: parsed.scorePlayer1,
         score_player2: parsed.scorePlayer2,
         reported_by: callerId,
-        status: 'submitted',
+        reported_by_id: callerId,
+        status: 'pending_verification',
+        updated_at: new Date().toISOString(),
       })
       .eq('id', parsed.matchId);
 
-    // Audit log
     await admin.from('audit_logs').insert({
       actor_id: callerId,
       action: 'report_score',
@@ -86,34 +112,39 @@ export async function reportScoreAction(input: {
       entity_id: parsed.matchId,
       previous_data: { status: match.status },
       new_data: {
-        status: 'submitted',
+        status: 'pending_verification',
         score_player1: parsed.scorePlayer1,
         score_player2: parsed.scorePlayer2,
+        reported_by_id: callerId,
       },
     });
 
     revalidatePath('/player');
+    revalidatePath('/me');
     revalidatePath(`/player/report/${parsed.matchId}`);
+    revalidatePath(`/admin/tournaments/${match.tournament_id}`);
+    revalidatePath(`/admin/tournaments/${match.tournament_id}/stations`);
     return { success: true };
   } catch (err: unknown) {
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    return { success: false, error: err instanceof Error ? err.message : 'Error al reportar marcador' };
   }
 }
 
+/** Backward compatible alias for reportMatchScoreAction */
+export const reportScoreAction = reportMatchScoreAction;
+
 /**
- * Opponent / Admin: Confirm match score.
- * Atomic server-side operation protected against unauthorized execution:
- * 1. Verifies caller is:
- *    a) Admin/SuperAdmin with approved status via Supabase Auth
- *    b) Match participant via verified session token, matching player1 or player2
- * 2. Rejects self-confirmation (reporter cannot confirm own report unless admin)
- * 3. Invokes database updates via service_role client
- * 4. Advances winner in bracket if knockout match
- * 5. Updates Glicko-2 ratings for both players
- * 6. Checks group completion status and unlocks standings if complete
- * 7. Emits audit log
+ * Verify match score action (Dual-Check second step / Referee mediation):
+ * - 'confirm': Valid if caller is the opponent or a referee/admin. Marks match completed and recalculates ratings.
+ * - 'dispute': Valid if caller is the opponent. Marks match disputed with disputeReason.
  */
-export async function confirmMatchAction(matchId: string): Promise<ActionResponse> {
+export async function verifyMatchScoreAction(input: {
+  matchId: string;
+  action: 'confirm' | 'dispute';
+  disputeReason?: string;
+  overrideScore1?: number;
+  overrideScore2?: number;
+}): Promise<ActionResponse> {
   try {
     const admin = createAdminClient();
     const userClient = await createClient();
@@ -121,236 +152,229 @@ export async function confirmMatchAction(matchId: string): Promise<ActionRespons
     const playerSession = await getPlayerSession();
 
     const callerId = user?.id || playerSession?.playerId;
-    if (!callerId) {
-      return { success: false, error: 'Unauthorized: Session required' };
-    }
+    if (!callerId) return { success: false, error: 'Acceso no autorizado: Se requiere sesión activa' };
 
-    // Fetch match
     const { data: match, error: mError } = await admin
       .from('matches')
       .select('*')
-      .eq('id', matchId)
+      .eq('id', input.matchId)
       .single();
 
-    if (mError || !match) return { success: false, error: 'Match not found' };
+    if (mError || !match) return { success: false, error: 'Partido no encontrado' };
 
-    if (match.status === 'confirmed') {
+    if (match.status === 'confirmed' || match.status === 'completed') {
       return { success: true }; // Idempotent
     }
 
-    if (match.status !== 'submitted') {
-      return { success: false, error: 'Match is not awaiting confirmation' };
-    }
-
-    // Verify admin role if user session is present
-    let isAdmin = false;
-    if (user) {
-      const { data: profile } = await admin
-        .from('profiles')
-        .select('role, admin_status')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (
-        profile?.admin_status === 'approved' &&
-        (profile.role === 'admin' || profile.role === 'super_admin')
-      ) {
-        isAdmin = true;
-      }
-    }
-
-    // Authorization checks
+    const isPrivileged = await checkRefereeOrAdmin(callerId);
     const isPlayer = match.player1_id === callerId || match.player2_id === callerId;
-    if (!isAdmin && !isPlayer) {
-      return { success: false, error: 'Not authorized to confirm this match' };
+
+    if (!isPrivileged && !isPlayer) {
+      return { success: false, error: 'No tienes autorización para validar este partido.' };
     }
 
-    const isReporter = match.reported_by === callerId;
-    if (isReporter && !isAdmin) {
-      return { success: false, error: 'Reporter cannot confirm their own report' };
-    }
-
-    const winnerNumber = determineWinner(match.score_player1 ?? 0, match.score_player2 ?? 0);
-    const winnerId = winnerNumber === 1 ? match.player1_id : match.player2_id;
-    const loserId = winnerNumber === 1 ? match.player2_id : match.player1_id;
-
-    // Fetch players to evaluate upset
-    const { data: pWinner } = await admin.from('profiles').select('*').eq('id', winnerId).single();
-    const { data: pLoser } = await admin.from('profiles').select('*').eq('id', loserId).single();
-
-    const evalResult = evaluateExpectedScore(
-      winnerNumber === 1 ? (pWinner?.rating ?? 1500) : (pLoser?.rating ?? 1500),
-      winnerNumber === 1 ? (pLoser?.rating ?? 1500) : (pWinner?.rating ?? 1500),
-      match.score_player1 ?? 0,
-      match.score_player2 ?? 0
-    );
-
-    // 1. Confirm match
-    await admin
-      .from('matches')
-      .update({
-        status: 'confirmed',
-        winner_id: winnerId,
-        is_upset: evalResult.isUpset,
-        confirmed_by: callerId,
-        confirmed_at: new Date().toISOString(),
-      })
-      .eq('id', matchId);
-
-    // 2. Advance winner in bracket if knockout match
-    if (match.next_match_id && match.next_slot) {
-      if (match.next_slot === 1) {
-        await admin
-          .from('matches')
-          .update({ player1_id: winnerId, updated_at: new Date().toISOString() })
-          .eq('id', match.next_match_id);
-      } else {
-        await admin
-          .from('matches')
-          .update({ player2_id: winnerId, updated_at: new Date().toISOString() })
-          .eq('id', match.next_match_id);
+    if (input.action === 'confirm') {
+      // Prevent self-confirmation unless referee/admin
+      const reporter = match.reported_by_id || match.reported_by;
+      if (reporter === callerId && !isPrivileged) {
+        return { success: false, error: 'El jugador que reportó no puede auto-confirmar su propio resultado.' };
       }
-    }
 
-    // 3. Update Glicko-2 ratings for both players
-    if (pWinner && pLoser) {
-      const [updatedWinner, updatedLoser] = updateRatingsForMatch(
-        {
-          rating: pWinner.rating,
-          ratingDeviation: pWinner.rating_deviation,
-          volatility: pWinner.volatility,
-          matchesPlayed: pWinner.matches_played,
-        },
-        {
-          rating: pLoser.rating,
-          ratingDeviation: pLoser.rating_deviation,
-          volatility: pLoser.volatility,
-          matchesPlayed: pLoser.matches_played,
-        }
-      );
+      // If referee provides overrides
+      const finalScore1 = input.overrideScore1 ?? match.score_player1;
+      const finalScore2 = input.overrideScore2 ?? match.score_player2;
 
-      await admin.from('profiles').update({
-        rating: updatedWinner.rating,
-        rating_deviation: updatedWinner.ratingDeviation,
-        volatility: updatedWinner.volatility,
-        matches_played: updatedWinner.matchesPlayed,
-      }).eq('id', winnerId);
-
-      await admin.from('profiles').update({
-        rating: updatedLoser.rating,
-        rating_deviation: updatedLoser.ratingDeviation,
-        volatility: updatedLoser.volatility,
-        matches_played: updatedLoser.matchesPlayed,
-      }).eq('id', loserId);
-    }
-
-    // 4. Check group completion if group stage
-    if (match.stage === 'group' && match.group_id) {
-      const { data: groupMatches } = await admin
-        .from('matches')
-        .select('status')
-        .eq('group_id', match.group_id);
-
-      const { data: grp } = await admin
-        .from('tournament_groups')
-        .select('*')
-        .eq('id', match.group_id)
-        .single();
-
-      if (groupMatches && grp) {
-        const confirmed = groupMatches.filter((m) => m.status === 'confirmed').length;
-        const pending = groupMatches.filter((m) => m.status === 'pending').length;
-        const submitted = groupMatches.filter((m) => m.status === 'submitted').length;
-        const disputed = groupMatches.filter((m) => m.status === 'disputed').length;
-
-        if (isGroupComplete(confirmed, grp.expected_matches, pending, submitted, disputed)) {
-          await admin
-            .from('tournament_groups')
-            .update({
-              status: 'completed',
-              completed_at: new Date().toISOString(),
-            })
-            .eq('id', match.group_id);
-        }
+      if (finalScore1 === null || finalScore2 === null) {
+        return { success: false, error: 'El partido no tiene un tanteo registrado para confirmar.' };
       }
+
+      return await finalizeAndConfirmMatch(admin, match, finalScore1, finalScore2, callerId, isPrivileged);
     }
 
-    // 5. If knockout stage, check if final match -> finish tournament
-    if (match.stage === 'final') {
+    if (input.action === 'dispute') {
+      // Must be a participant or referee
+      const reporter = match.reported_by_id || match.reported_by;
+      if (reporter === callerId && !isPrivileged) {
+        return { success: false, error: 'No puedes impugnar un marcador anotado por ti mismo.' };
+      }
+
+      const reason = input.disputeReason?.trim() || 'Marcador impugnado por desacuerdo en el tanteo.';
+
       await admin
-        .from('tournaments')
-        .update({ status: 'finished' })
-        .eq('id', match.tournament_id);
+        .from('matches')
+        .update({
+          status: 'disputed',
+          dispute_reason: reason,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', input.matchId);
+
+      await admin.from('audit_logs').insert({
+        actor_id: callerId,
+        action: 'dispute_match',
+        entity_type: 'matches',
+        entity_id: input.matchId,
+        previous_data: { status: match.status },
+        new_data: { status: 'disputed', dispute_reason: reason },
+      });
+
+      revalidatePath('/player');
+      revalidatePath('/me');
+      revalidatePath(`/admin/tournaments/${match.tournament_id}`);
+      revalidatePath(`/admin/tournaments/${match.tournament_id}/stations`);
+      return { success: true };
     }
 
-    // 6. Audit log
-    await admin.from('audit_logs').insert({
-      actor_id: callerId,
-      action: 'confirm_match',
-      entity_type: 'matches',
-      entity_id: matchId,
-      previous_data: { status: match.status },
-      new_data: { status: 'confirmed', winner_id: winnerId },
-    });
-
-    revalidatePath('/player');
-    revalidatePath('/admin');
-    return { success: true };
+    return { success: false, error: 'Acción no reconocida' };
   } catch (err: unknown) {
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    return { success: false, error: err instanceof Error ? err.message : 'Error verificando partido' };
   }
 }
 
-/**
- * Player: Dispute match score.
- * Transitions match from submitted -> disputed.
- * Accessible to participants via Supabase Auth or signed player session.
- */
-export async function disputeMatchAction(matchId: string, notes?: string): Promise<ActionResponse> {
-  try {
-    const admin = createAdminClient();
-    const userClient = await createClient();
-    const { data: { user } } = await userClient.auth.getUser();
-    const playerSession = await getPlayerSession();
+/** Helper to finalize match, advance bracket, update Glicko-2 ratings and free table */
+async function finalizeAndConfirmMatch(
+  admin: any,
+  match: any,
+  score1: number,
+  score2: number,
+  verifierId: string,
+  isPrivileged: boolean
+): Promise<ActionResponse> {
+  const winnerNumber = determineWinner(score1, score2);
+  const winnerId = winnerNumber === 1 ? match.player1_id : match.player2_id;
+  const loserId = winnerNumber === 1 ? match.player2_id : match.player1_id;
 
-    const callerId = user?.id || playerSession?.playerId;
-    if (!callerId) return { success: false, error: 'Unauthorized: Session required' };
+  // Fetch players to evaluate upset
+  const { data: pWinner } = await admin.from('profiles').select('*').eq('id', winnerId).single();
+  const { data: pLoser } = await admin.from('profiles').select('*').eq('id', loserId).single();
 
-    const { data: match, error: mError } = await admin
-      .from('matches')
-      .select('*')
-      .eq('id', matchId)
-      .single();
+  const evalResult = evaluateExpectedScore(
+    winnerNumber === 1 ? (pWinner?.rating ?? 1500) : (pLoser?.rating ?? 1500),
+    winnerNumber === 1 ? (pLoser?.rating ?? 1500) : (pWinner?.rating ?? 1500),
+    score1,
+    score2
+  );
 
-    if (mError || !match) return { success: false, error: 'Match not found' };
+  // 1. Confirm and complete match
+  await admin
+    .from('matches')
+    .update({
+      status: 'completed',
+      score_player1: score1,
+      score_player2: score2,
+      winner_id: winnerId,
+      is_upset: evalResult.isUpset,
+      confirmed_by: verifierId,
+      verified_by_id: verifierId,
+      confirmed_at: new Date().toISOString(),
+      dispute_reason: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', match.id);
 
-    // Must be the opponent
-    if (match.reported_by === callerId) {
-      return { success: false, error: 'Cannot dispute your own report' };
-    }
-
-    if (match.player1_id !== callerId && match.player2_id !== callerId) {
-      return { success: false, error: 'Only participants can dispute a match' };
-    }
-
+  // 2. Advance winner in bracket if knockout match
+  if (match.next_match_id && match.next_slot) {
+    const slotField = match.next_slot === 1 ? 'player1_id' : 'player2_id';
     await admin
       .from('matches')
-      .update({ status: 'disputed' })
-      .eq('id', matchId);
-
-    await admin.from('audit_logs').insert({
-      actor_id: callerId,
-      action: 'dispute_match',
-      entity_type: 'matches',
-      entity_id: matchId,
-      previous_data: { status: match.status },
-      new_data: { status: 'disputed', notes },
-    });
-
-    revalidatePath('/player');
-    revalidatePath('/admin');
-    return { success: true };
-  } catch (err: unknown) {
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+      .update({ [slotField]: winnerId, updated_at: new Date().toISOString() })
+      .eq('id', match.next_match_id);
   }
+
+  // 3. Update Glicko-2 ratings
+  if (pWinner && pLoser) {
+    const [updatedWinner, updatedLoser] = updateRatingsForMatch(
+      {
+        rating: pWinner.rating,
+        ratingDeviation: pWinner.rating_deviation,
+        volatility: pWinner.volatility,
+        matchesPlayed: pWinner.matches_played,
+      },
+      {
+        rating: pLoser.rating,
+        ratingDeviation: pLoser.rating_deviation,
+        volatility: pLoser.volatility,
+        matchesPlayed: pLoser.matches_played,
+      }
+    );
+
+    await admin.from('profiles').update({
+      rating: updatedWinner.rating,
+      rating_deviation: updatedWinner.ratingDeviation,
+      volatility: updatedWinner.volatility,
+      matches_played: updatedWinner.matchesPlayed,
+    }).eq('id', winnerId);
+
+    await admin.from('profiles').update({
+      rating: updatedLoser.rating,
+      rating_deviation: updatedLoser.ratingDeviation,
+      volatility: updatedLoser.volatility,
+      matches_played: updatedLoser.matchesPlayed,
+    }).eq('id', loserId);
+  }
+
+  // 4. Check group completion if group stage
+  if (match.stage === 'group' && match.group_id) {
+    const { data: groupMatches } = await admin
+      .from('matches')
+      .select('status')
+      .eq('group_id', match.group_id);
+
+    const { data: grp } = await admin
+      .from('tournament_groups')
+      .select('*')
+      .eq('id', match.group_id)
+      .single();
+
+    if (groupMatches && grp) {
+      const confirmed = groupMatches.filter((m: any) => m.status === 'confirmed' || m.status === 'completed').length;
+      const pending = groupMatches.filter((m: any) => m.status === 'pending' || m.status === 'scheduled').length;
+      const submitted = groupMatches.filter((m: any) => m.status === 'submitted' || m.status === 'pending_verification').length;
+      const disputed = groupMatches.filter((m: any) => m.status === 'disputed').length;
+
+      if (isGroupComplete(confirmed, grp.expected_matches, pending, submitted, disputed)) {
+        await admin
+          .from('tournament_groups')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', match.group_id);
+      }
+    }
+  }
+
+  // 5. If final stage, complete tournament
+  if (match.stage === 'final') {
+    await admin
+      .from('tournaments')
+      .update({ status: 'finished' })
+      .eq('id', match.tournament_id);
+  }
+
+  // 6. Audit log
+  await admin.from('audit_logs').insert({
+    actor_id: verifierId,
+    action: isPrivileged ? 'referee_override_match' : 'confirm_match',
+    entity_type: 'matches',
+    entity_id: match.id,
+    previous_data: { status: match.status },
+    new_data: { status: 'completed', winner_id: winnerId, score_player1: score1, score_player2: score2 },
+  });
+
+  revalidatePath('/player');
+  revalidatePath('/me');
+  revalidatePath(`/admin/tournaments/${match.tournament_id}`);
+  revalidatePath(`/admin/tournaments/${match.tournament_id}/stations`);
+  return { success: true };
+}
+
+/** Confirm match score action (calls verifyMatchScoreAction with 'confirm') */
+export async function confirmMatchAction(matchId: string): Promise<ActionResponse> {
+  return verifyMatchScoreAction({ matchId, action: 'confirm' });
+}
+
+/** Dispute match score action (calls verifyMatchScoreAction with 'dispute') */
+export async function disputeMatchAction(matchId: string, notes?: string): Promise<ActionResponse> {
+  return verifyMatchScoreAction({ matchId, action: 'dispute', disputeReason: notes });
 }

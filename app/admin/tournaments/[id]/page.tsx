@@ -25,8 +25,10 @@ export default async function AdminTournamentDetailPage({ params }: PageProps) {
     profile?.role === 'super_admin' ||
     user.email?.toLowerCase() === 'guillermoriveraterriza@gmail.com';
 
-  if (profile?.role !== 'admin' && !isSuperAdmin) {
-    redirect('/player');
+  const isReferee = profile?.role === 'referee';
+
+  if (profile?.role !== 'admin' && !isSuperAdmin && !isReferee) {
+    redirect('/me');
   }
 
   // Fetch tournament

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { calculateWinProbability } from '@/lib/engine/analytics';
 import { calculateStandings } from '@/lib/engine/standings';
 import { getCategoryLabel } from '@/lib/engine/categories';
+import { PlayerActiveMatchCard } from '@/components/PlayerActiveMatchCard';
 import type { AgeCategory } from '@/lib/types/domain';
 
 export default async function PlayerPortalPage() {
@@ -83,7 +84,13 @@ export default async function PlayerPortalPage() {
 
   // Next Pending Match for the active tournament or general pending
   const pendingMatches = (allMatches || []).filter(
-    (m) => m.status === 'pending' || m.status === 'submitted'
+    (m) =>
+      m.status === 'pending' ||
+      m.status === 'scheduled' ||
+      m.status === 'in_progress' ||
+      m.status === 'submitted' ||
+      m.status === 'pending_verification' ||
+      m.status === 'disputed'
   );
   const nextMatch = pendingMatches[0] || null;
 
@@ -146,28 +153,32 @@ export default async function PlayerPortalPage() {
     }
   }
 
+  const nextMatchData = nextMatch
+    ? {
+        id: nextMatch.id,
+        tournamentId: nextMatch.tournament_id,
+        tournamentName:
+          (activeParticipation?.tournaments as any)?.name ||
+          (nextMatch.tournaments as any)?.name ||
+          'Torneo Oficial',
+        stage: nextMatch.stage,
+        tableNumber: nextMatch.table_number,
+        player1Id: nextMatch.player1_id,
+        player2Id: nextMatch.player2_id,
+        player1Name: (nextMatch.player1 as any)?.nickname || (nextMatch.player1 as any)?.name || 'Jugador 1',
+        player2Name: (nextMatch.player2 as any)?.nickname || (nextMatch.player2 as any)?.name || 'Jugador 2',
+        player1Rating: Math.round((nextMatch.player1 as any)?.rating ?? 1500),
+        player2Rating: Math.round((nextMatch.player2 as any)?.rating ?? 1500),
+        scorePlayer1: nextMatch.score_player1,
+        scorePlayer2: nextMatch.score_player2,
+        status: nextMatch.status,
+        reportedBy: nextMatch.reported_by_id || nextMatch.reported_by,
+        winExpectancy: winExpectancy ? winExpectancy / 100 : null,
+      }
+    : null;
+
   return (
     <main className="min-h-screen pb-24 bg-[var(--background)] text-[var(--foreground)]">
-      {/* Top Navbar */}
-      <header className="glass sticky top-0 z-50 px-4 py-3.5 border-b border-[var(--border)]">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <Link href="/" className="font-extrabold text-lg tracking-tight">
-            Tourney<span className="text-[var(--primary)]">Master</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/leaderboard"
-              className="text-xs font-semibold text-[var(--muted-foreground)] hover:text-white px-2.5 py-1.5 rounded-lg bg-[var(--secondary)] transition-colors"
-            >
-              🏆 Ranking Global
-            </Link>
-            <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white text-xs font-black shadow-md">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
-          </div>
-        </div>
-      </header>
-
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6 animate-slide-up">
         {/* 1. Main Profile Card */}
         <div className="p-6 rounded-2xl bg-[var(--card)] border border-[var(--border)] shadow-xl relative overflow-hidden">
@@ -288,81 +299,11 @@ export default async function PlayerPortalPage() {
               </div>
             )}
 
-            {/* Next Match Card */}
-            {nextMatch ? (
-              <div className="p-5 rounded-xl bg-[var(--card)] border border-[var(--border)] space-y-4">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-[var(--muted-foreground)] uppercase">
-                    Próximo Partido • Fase de {nextMatch.stage}
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-extrabold text-[10px]">
-                    {nextMatch.status === 'pending' ? 'Listo para jugar' : 'Marcador enviado'}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between gap-4 py-2">
-                  <div className="text-center sm:text-left flex-1">
-                    <div className="font-black text-base text-white truncate">{displayName}</div>
-                    <div className="text-xs font-mono text-[var(--primary)] font-bold">{playerRating} pts</div>
-                  </div>
-
-                  <div className="px-3 py-1 rounded-xl bg-[var(--secondary)] text-center shrink-0">
-                    <span className="text-xs font-black text-[var(--muted-foreground)] uppercase">VS</span>
-                  </div>
-
-                  <div className="text-center sm:text-right flex-1">
-                    <div className="font-black text-base text-white truncate">{opponent?.name}</div>
-                    <div className="text-xs font-mono text-[var(--primary)] font-bold">{opponent?.rating} pts</div>
-                  </div>
-                </div>
-
-                {/* Win Expectancy Predictive Bar */}
-                {winExpectancy !== null && (
-                  <div className="space-y-1.5 pt-2 border-t border-[var(--border)]">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-[var(--muted-foreground)] font-medium">
-                        Probabilidad predictiva de victoria (Bradley-Terry):
-                      </span>
-                      <span className="font-bold text-blue-400 font-mono">{winExpectancy}%</span>
-                    </div>
-                    <div className="w-full bg-[var(--secondary)] h-2.5 rounded-full overflow-hidden flex">
-                      <div
-                        className="bg-blue-500 h-full rounded-full transition-all duration-500"
-                        style={{ width: `${winExpectancy}%` }}
-                      />
-                      <div
-                        className="bg-amber-500 h-full rounded-full opacity-60"
-                        style={{ width: `${100 - winExpectancy}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div className="pt-2 flex gap-3">
-                  {nextMatch.status === 'pending' ? (
-                    <Link
-                      href={`/player/report/${nextMatch.id}`}
-                      className="w-full py-3 rounded-xl gradient-primary text-white text-center font-bold text-sm shadow-md hover:opacity-95 transition"
-                    >
-                      Reportar Marcador
-                    </Link>
-                  ) : nextMatch.reported_by !== profile.id ? (
-                    <Link
-                      href={`/player/report/${nextMatch.id}`}
-                      className="w-full py-3 rounded-xl bg-[var(--accent)] text-white text-center font-bold text-sm shadow-md hover:opacity-95 transition"
-                    >
-                      Confirmar Marcador Enviado por Rival
-                    </Link>
-                  ) : (
-                    <div className="w-full py-3 rounded-xl bg-[var(--secondary)] text-center text-xs text-[var(--muted-foreground)] font-medium">
-                      Esperando confirmación del rival...
-                    </div>
-                  )}
-                </div>
-              </div>
+            {/* Next Match Card / Dual-check Interactive Component */}
+            {nextMatchData ? (
+              <PlayerActiveMatchCard match={nextMatchData} currentUserId={profile.id} />
             ) : (
-              <div className="p-4 rounded-xl bg-[var(--card)] border border-[var(--border)] text-center text-sm text-[var(--muted-foreground)]">
+              <div className="p-5 rounded-xl bg-[var(--card)] border border-[var(--border)] text-center text-xs text-[var(--muted-foreground)]">
                 ✓ No tienes partidos pendientes en este momento.
               </div>
             )}

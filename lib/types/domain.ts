@@ -1,7 +1,7 @@
 import type { MatchStage, MatchStatus, TournamentStatus, GroupStatus } from '../engine/constants';
 
 // ============ ROLES & CATEGORIES ============
-export type UserRole = 'super_admin' | 'admin' | 'player';
+export type UserRole = 'super_admin' | 'admin' | 'referee' | 'player';
 export type AdminStatus = 'none' | 'pending' | 'approved' | 'rejected';
 export type AgeCategory = 'sub14' | 'plus14';
 
