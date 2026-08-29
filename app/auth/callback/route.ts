@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@/lib/supabase/server';
+import { createPlayerSessionToken, PLAYER_SESSION_COOKIE_OPTIONS } from '@/lib/auth/player-session';
 import { cookies } from 'next/headers';
 
 /**
@@ -37,65 +38,52 @@ export function validateRedirectUrl(target: string | null | undefined, fallback:
 }
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get('code');
-  const rawRedirect = searchParams.get('redirectTo');
-  const safeRedirect = validateRedirectUrl(rawRedirect, '/admin');
+  const requestUrl = new URL(request.url);
+  const code = requestUrl.searchParams.get('code');
+  const nextParam = requestUrl.searchParams.get('next') || requestUrl.searchParams.get('redirectTo');
 
   if (code) {
     const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          },
-        },
-      }
-    );
+    const supabase = await createClient();
+    const { data: { session }, error } = await supabase.auth.exchangeCodeForSession(code);
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      const { data: { user } } = await supabase.auth.getUser();
-      let roleDefault = '/me';
+    if (!error && session?.user) {
+      const userEmail = session.user.email?.toLowerCase();
 
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role, admin_status')
-          .or(`id.eq.${user.id},user_id.eq.${user.id}`)
-          .maybeSingle();
+      // Consultar el perfil por email
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, role, name, nickname, admin_status')
+        .eq('email', userEmail)
+        .maybeSingle();
 
-        const isSuperAdmin =
-          user.email?.toLowerCase() === 'guillermoriveraterriza@gmail.com' ||
-          profile?.role === 'super_admin';
-        const isAdmin = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_status === 'approved');
-        const isReferee = profile?.role === 'referee';
+      const isSuperAdmin = userEmail === 'guillermoriveraterriza@gmail.com' || profile?.role === 'super_admin';
+      const role = isSuperAdmin ? 'super_admin' : (profile?.role || 'player');
 
-        roleDefault = (isAdmin || isReferee) ? '/admin' : '/me';
+      // Si es jugador, emitir cookie de sesión de jugador
+      if (role === 'player' && profile) {
+        const token = await createPlayerSessionToken({
+          playerId: profile.id,
+          email: userEmail!,
+        });
+        cookieStore.set('tourneymaster_session', token, PLAYER_SESSION_COOKIE_OPTIONS);
       }
 
-      let targetPath = roleDefault;
-      if (rawRedirect) {
-        const validated = validateRedirectUrl(rawRedirect, '');
-        if (validated && validated !== '' && validated !== '/admin') {
-          targetPath = validated;
-        } else if (validated === '/admin') {
-          targetPath = roleDefault;
+      // Redirección inteligente respetando ruta solicitada o por rol
+      if (nextParam) {
+        const validated = validateRedirectUrl(nextParam, '');
+        if (validated && validated !== '/login') {
+          return NextResponse.redirect(new URL(validated, requestUrl.origin));
         }
       }
 
-      return NextResponse.redirect(`${origin}${targetPath}`);
+      if (role === 'super_admin' || role === 'admin' || role === 'referee') {
+        return NextResponse.redirect(new URL('/admin', requestUrl.origin));
+      }
+
+      return NextResponse.redirect(new URL('/me', requestUrl.origin));
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth-failed`);
+  return NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin));
 }

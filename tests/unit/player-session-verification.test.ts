@@ -308,4 +308,23 @@ describe('Player Session Verification & Cookie Hardening Suite', () => {
       expect(session).toBeNull();
     });
   });
+
+  describe('5. Validaciones de Redirección Segura en Callback (/auth/callback)', () => {
+    it('allows valid relative paths', async () => {
+      const { validateRedirectUrl } = await import('../../app/auth/callback/route');
+      expect(validateRedirectUrl('/admin')).toBe('/admin');
+      expect(validateRedirectUrl('/me')).toBe('/me');
+      expect(validateRedirectUrl('/t/torneo-2026')).toBe('/t/torneo-2026');
+    });
+
+    it('rejects open redirects and dangerous protocols', async () => {
+      const { validateRedirectUrl } = await import('../../app/auth/callback/route');
+      expect(validateRedirectUrl('https://evil.com', '/admin')).toBe('/admin');
+      expect(validateRedirectUrl('//evil.com', '/admin')).toBe('/admin');
+      expect(validateRedirectUrl('/\\evil.com', '/admin')).toBe('/admin');
+      expect(validateRedirectUrl('javascript:alert(1)', '/admin')).toBe('/admin');
+      expect(validateRedirectUrl('', '/admin')).toBe('/admin');
+      expect(validateRedirectUrl(null, '/admin')).toBe('/admin');
+    });
+  });
 });

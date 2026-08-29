@@ -14,17 +14,70 @@ export default async function PlayerPortalPage() {
   const { data: { user } } = await supabase.auth.getUser();
   const playerSession = await getPlayerSession();
 
+  if (!user && !playerSession) {
+    redirect('/login?redirectTo=/me');
+  }
+
+  let profile: any = null;
+
+  // 1. Try finding profile by authenticated Supabase Auth user email
+  if (user?.email) {
+    const { data: pByEmail } = await admin
+      .from('profiles')
+      .select('*')
+      .eq('email', user.email.toLowerCase())
+      .maybeSingle();
+    if (pByEmail) profile = pByEmail;
+  }
+
+  // 2. Try finding profile by targetPlayerId
   const targetPlayerId = user?.id || playerSession?.playerId;
-  if (!targetPlayerId) redirect('/login?redirectTo=/me');
+  if (!profile && targetPlayerId) {
+    const { data: pById } = await admin
+      .from('profiles')
+      .select('*')
+      .or(`id.eq.${targetPlayerId},user_id.eq.${targetPlayerId}`)
+      .maybeSingle();
+    if (pById) profile = pById;
+  }
 
-  // Fetch player profile
-  const { data: profile } = await admin
-    .from('profiles')
-    .select('*')
-    .or(`id.eq.${targetPlayerId},user_id.eq.${targetPlayerId}`)
-    .maybeSingle();
+  // 3. Try finding profile by player session email
+  if (!profile && playerSession?.email) {
+    const { data: pBySessionEmail } = await admin
+      .from('profiles')
+      .select('*')
+      .eq('email', playerSession.email.toLowerCase())
+      .maybeSingle();
+    if (pBySessionEmail) profile = pBySessionEmail;
+  }
 
-  if (!profile) redirect('/login?redirectTo=/me');
+  // 4. Auto-provision profile if user is authenticated via Supabase Auth
+  if (!profile && user?.email) {
+    const userEmail = user.email.toLowerCase();
+    const isSuperAdmin = userEmail === 'guillermoriveraterriza@gmail.com';
+    const fallbackName = user.user_metadata?.name || userEmail.split('@')[0];
+    const newProfile = {
+      id: user.id,
+      name: fallbackName,
+      nickname: fallbackName,
+      email: userEmail,
+      role: isSuperAdmin ? 'super_admin' : 'player',
+      admin_status: isSuperAdmin ? 'approved' : 'none',
+      category: 'plus14',
+      rating: 1500,
+      rating_deviation: 350,
+      volatility: 0.06,
+      matches_played: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    await admin.from('profiles').upsert(newProfile, { onConflict: 'id' });
+    profile = newProfile;
+  }
+
+  if (!profile) {
+    redirect('/login?redirectTo=/me');
+  }
 
   const displayName = profile.nickname || profile.name || 'Jugador';
   const playerRating = Math.round(profile.rating ?? 1500);

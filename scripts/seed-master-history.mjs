@@ -942,7 +942,7 @@ async function runMasterSeed() {
   await supabase.from('tournaments').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   await supabase.from('player_aliases').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   await supabase.from('players').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await supabase.from('profiles').delete().neq('email', 'guillermoriveraterriza@gmail.com');
+  await supabase.from('profiles').delete().not('email', 'in', '("guillermoriveraterriza@gmail.com","wriveraterriza@gmail.com")');
   console.log('Cleared previous database records cleanly.');
 
   // 2. Discover all canonical players from matches & name map
@@ -1037,6 +1037,25 @@ async function runMasterSeed() {
     .from('profiles')
     .update({ role: 'super_admin', admin_status: 'approved' })
     .eq('email', 'guillermoriveraterriza@gmail.com');
+
+  // Preserve player profile for wriveraterriza@gmail.com
+  await supabase
+    .from('profiles')
+    .upsert({
+      id: '422ba156-2140-4002-98e5-031736eb4b3c',
+      name: 'Willy Rivera',
+      nickname: 'Willy',
+      email: 'wriveraterriza@gmail.com',
+      role: 'player',
+      admin_status: 'none',
+      category: 'plus14',
+      rating: 1500,
+      rating_deviation: 350,
+      volatility: 0.06,
+      matches_played: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'email' });
 
   // Insert players
   for (let i = 0; i < playerRows.length; i += 50) {
