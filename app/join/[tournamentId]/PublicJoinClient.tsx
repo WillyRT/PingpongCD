@@ -6,9 +6,10 @@ import { QRCodeSVG } from 'qrcode.react';
 import { determineAgeCategory, getCategoryLabel } from '@/lib/engine/categories';
 import {
   lookupPlayerByEmailAction,
+  searchExistingPlayersAction,
   searchHistoricalPlayersAction,
   publicJoinTournamentAction,
-  type HistoricalPlayerSuggestion,
+  type ExistingPlayerSuggestion,
 } from '@/lib/actions/registration';
 import type { TournamentRow, ProfileRow } from '@/lib/types/database';
 import type { AgeCategory } from '@/lib/types/domain';
@@ -26,8 +27,8 @@ export function PublicJoinClient({
   existingProfile,
 }: PublicJoinClientProps) {
   const [email, setEmail] = useState(currentUser?.email || existingProfile?.email || '');
-  const [name, setName] = useState(existingProfile?.name || '');
-  const [birthDateOrAge, setBirthDateOrAge] = useState<string>('20');
+  const [name, setName] = useState(existingProfile?.nickname || existingProfile?.name || '');
+  const [birthDateOrAge, setBirthDateOrAge] = useState<string>(existingProfile?.birth_date || '20');
   const [declaredLevel, setDeclaredLevel] = useState<number>(existingProfile?.declared_level ?? 5.0);
   const [isLockedByHistory, setIsLockedByHistory] = useState(!!existingProfile?.rating);
   const [historicalRating, setHistoricalRating] = useState<number | null>(
@@ -36,9 +37,9 @@ export function PublicJoinClient({
   const [lookupMessage, setLookupMessage] = useState<string | null>(null);
 
   // Historical autocomplete state
-  const [suggestions, setSuggestions] = useState<HistoricalPlayerSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<ExistingPlayerSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedHistoricalPlayer, setSelectedHistoricalPlayer] = useState<HistoricalPlayerSuggestion | null>(null);
+  const [selectedHistoricalPlayer, setSelectedHistoricalPlayer] = useState<ExistingPlayerSuggestion | null>(null);
   const [isSearchingPlayers, setIsSearchingPlayers] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -82,7 +83,7 @@ export function PublicJoinClient({
       setIsSearchingPlayers(true);
       searchTimeoutRef.current = setTimeout(async () => {
         try {
-          const res = await searchHistoricalPlayersAction(val);
+          const res = await searchExistingPlayersAction(val);
           if (res.success && res.data && res.data.length > 0) {
             setSuggestions(res.data);
             setShowSuggestions(true);
@@ -104,18 +105,25 @@ export function PublicJoinClient({
     }
   };
 
-  const handleSelectSuggestion = (s: HistoricalPlayerSuggestion) => {
+  const handleSelectSuggestion = (s: ExistingPlayerSuggestion) => {
     setName(s.name);
     setSelectedHistoricalPlayer(s);
     setHistoricalRating(s.rating);
     setIsLockedByHistory(true);
     setShowSuggestions(false);
 
-    if (s.category) {
+    if (s.emailReal && !email) {
+      setEmail(s.emailReal);
+    }
+
+    if (s.birthDate) {
+      setBirthDateOrAge(s.birthDate);
+      setCategory(determineAgeCategory(s.birthDate));
+    } else if (s.category) {
       setCategory(s.category);
     }
 
-    setLookupMessage(`Vinculado a ${s.name} (ELO histórico: ${s.rating})`);
+    setLookupMessage(`Vinculado a ${s.name} (ELO Glicko-2: ${s.rating}${s.ratingDeviation ? ` ±${s.ratingDeviation}` : ''})`);
   };
 
   const handleUnlinkHistorical = () => {
@@ -348,36 +356,58 @@ export function PublicJoinClient({
             {/* Suggestions Dropdown */}
             {showSuggestions && suggestions.length > 0 && (
               <div className="absolute z-30 w-full mt-1 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden divide-y divide-[var(--border)]">
-                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] bg-[var(--secondary)]">
-                  Jugadores Históricos Sugeridos
+                <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] bg-[var(--secondary)] flex items-center justify-between">
+                  <span>Jugadores Encontrados ({suggestions.length})</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSuggestions(false)}
+                    className="text-[10px] text-[var(--muted-foreground)] hover:text-white"
+                  >
+                    ✕ Cerrar
+                  </button>
                 </div>
                 {suggestions.map((s) => (
                   <button
                     key={s.id}
                     type="button"
                     onClick={() => handleSelectSuggestion(s)}
-                    className="w-full px-4 py-2.5 text-left hover:bg-[var(--secondary)] flex items-center justify-between transition-colors"
+                    className="w-full px-4 py-3 text-left hover:bg-[var(--secondary)] flex items-center justify-between gap-3 transition-colors"
                   >
-                    <div>
-                      <span className="font-semibold text-sm text-[var(--foreground)]">
-                        ¿Eres {s.name}?
-                      </span>
-                      {s.matchedAlias && (
-                        <span className="text-xs text-[var(--muted-foreground)] ml-1">
-                          ({s.canonicalName})
-                        </span>
-                      )}
-                      {s.emailMasked && (
-                        <div className="text-xs text-[var(--muted-foreground)]">
-                          {s.emailMasked}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-full gradient-primary flex items-center justify-center text-white text-xs font-extrabold shrink-0 shadow">
+                        {s.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-sm text-[var(--foreground)] flex items-center gap-1.5 truncate">
+                          <span>{s.name}</span>
+                          {s.category && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                              s.category === 'sub14' ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'
+                            }`}>
+                              {s.category === 'sub14' ? 'Sub-14' : '+14'}
+                            </span>
+                          )}
                         </div>
-                      )}
+                        {s.emailMasked ? (
+                          <div className="text-xs text-[var(--muted-foreground)] truncate">
+                            {s.emailMasked}
+                          </div>
+                        ) : s.canonicalName && s.canonicalName !== s.name ? (
+                          <div className="text-xs text-[var(--muted-foreground)] truncate">
+                            Alias de {s.canonicalName}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-[var(--muted-foreground)]">
+                            {s.source === 'profile' ? 'Perfil Registrado' : 'Archivo Histórico'}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-500/20 text-amber-400">
-                        ELO: {s.rating}
+                    <div className="text-right shrink-0">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-mono font-extrabold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                        ELO {s.rating}
                       </span>
-                      <div className="text-[10px] text-[var(--muted-foreground)]">
+                      <div className="text-[10px] text-[var(--muted-foreground)] mt-0.5">
                         {s.matchesPlayed} partidos
                       </div>
                     </div>
@@ -412,49 +442,65 @@ export function PublicJoinClient({
             </p>
           </div>
 
-          {/* Level Slider (0.0 to 10.0) */}
+          {/* Level Slider (0.0 to 10.0) or Verified Glicko-2 Card */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Nivel Autodeclarado (0 a 10)
-              </label>
-              <span className="font-bold text-sm text-[var(--primary)]">
-                {isLockedByHistory ? `${historicalRating} pts (Histórico)` : `${declaredLevel.toFixed(1)} / 10`}
-              </span>
-            </div>
-
-            <input
-              type="range"
-              min="0"
-              max="10"
-              step="0.5"
-              disabled={isLockedByHistory}
-              value={declaredLevel}
-              onChange={(e) => setDeclaredLevel(parseFloat(e.target.value))}
-              className="w-full accent-[var(--primary)] h-2 bg-[var(--secondary)] rounded-lg cursor-pointer disabled:opacity-50"
-            />
-
-            <div className="flex justify-between text-[10px] text-[var(--muted-foreground)] mt-1">
-              <span>0 = Principiante</span>
-              <span>5 = Intermedio</span>
-              <span>10 = Máximo Nivel</span>
-            </div>
-
             {isLockedByHistory ? (
-              <div className="mt-2 p-2.5 rounded-lg bg-green-500/10 border border-green-500/20 text-xs text-green-400 flex items-center justify-between">
-                <span>⭐ Rating Glicko-2 histórico vinculado ({historicalRating} pts)</span>
-                <button
-                  type="button"
-                  onClick={handleUnlinkHistorical}
-                  className="underline hover:text-white"
-                >
-                  Cambiar
-                </button>
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between shadow-inner">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-amber-400 font-bold text-sm">⭐ Rating Oficial Glicko-2</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300">
+                      Verificado
+                    </span>
+                  </div>
+                  <div className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                    Nivel fijado por histórico de competición • {selectedHistoricalPlayer?.matchesPlayed ?? 0} partidos
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-extrabold font-mono text-amber-400">
+                    {historicalRating ?? 1500} pts
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleUnlinkHistorical}
+                    className="text-xs text-[var(--muted-foreground)] hover:text-white underline mt-0.5"
+                  >
+                    Desvincular
+                  </button>
+                </div>
               </div>
             ) : (
-              <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                Rating estimado inicial: <strong className="text-[var(--foreground)]">{provisionalPreview} pts</strong>
-              </p>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
+                    Nivel Autodeclarado (0 a 10)
+                  </label>
+                  <span className="font-bold text-sm text-[var(--primary)]">
+                    {declaredLevel.toFixed(1)} / 10
+                  </span>
+                </div>
+
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  step="0.5"
+                  value={declaredLevel}
+                  onChange={(e) => setDeclaredLevel(parseFloat(e.target.value))}
+                  className="w-full accent-[var(--primary)] h-2 bg-[var(--secondary)] rounded-lg cursor-pointer"
+                />
+
+                <div className="flex justify-between text-[10px] text-[var(--muted-foreground)] mt-1">
+                  <span>0 = Principiante</span>
+                  <span>5 = Intermedio</span>
+                  <span>10 = Máximo Nivel</span>
+                </div>
+
+                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                  Rating estimado inicial: <strong className="text-[var(--foreground)]">{provisionalPreview} pts</strong>
+                </p>
+              </div>
             )}
           </div>
 

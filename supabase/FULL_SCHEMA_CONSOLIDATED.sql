@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
+  nickname TEXT,
   email TEXT,
   phone TEXT,
   role TEXT NOT NULL DEFAULT 'player' CHECK (role IN ('super_admin', 'admin', 'player')),
@@ -35,37 +36,56 @@ CREATE UNIQUE INDEX IF NOT EXISTS profiles_user_id_idx ON public.profiles(user_i
 CREATE UNIQUE INDEX IF NOT EXISTS profiles_email_lower_idx ON public.profiles(LOWER(email)) WHERE email IS NOT NULL AND email <> '';
 
 -- Auto-create or link profile on auth signup & designate superadmin for guillermoriveraterriza@gmail.com
+-- 100% resilient to nulls or missing metadata from Magic Links
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  v_role text := 'player';
+  v_status text := 'none';
+  v_nickname text;
 BEGIN
+  IF LOWER(NEW.email) = 'guillermoriveraterriza@gmail.com' THEN
+    v_role := 'super_admin';
+    v_status := 'approved';
+  END IF;
+
+  v_nickname := COALESCE(
+    NEW.raw_user_meta_data->>'nickname',
+    NEW.raw_user_meta_data->>'name',
+    SPLIT_PART(NEW.email, '@', 1),
+    'Jugador'
+  );
+
   IF EXISTS (SELECT 1 FROM public.profiles WHERE LOWER(email) = LOWER(NEW.email)) THEN
     UPDATE public.profiles
     SET
       user_id = NEW.id,
       email = LOWER(NEW.email),
+      nickname = COALESCE(public.profiles.nickname, v_nickname),
+      name = COALESCE(public.profiles.name, v_nickname),
       role = CASE WHEN LOWER(NEW.email) = 'guillermoriveraterriza@gmail.com' THEN 'super_admin' ELSE public.profiles.role END,
       admin_status = CASE WHEN LOWER(NEW.email) = 'guillermoriveraterriza@gmail.com' THEN 'approved' ELSE public.profiles.admin_status END,
-      updated_at = now()
+      updated_at = NOW()
     WHERE LOWER(email) = LOWER(NEW.email);
   ELSE
-    INSERT INTO public.profiles (id, user_id, name, email, role, admin_status)
-    VALUES (
-      NEW.id,
-      NEW.id,
-      COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
-      LOWER(NEW.email),
-      CASE WHEN LOWER(NEW.email) = 'guillermoriveraterriza@gmail.com' THEN 'super_admin' ELSE 'player' END,
-      CASE WHEN LOWER(NEW.email) = 'guillermoriveraterriza@gmail.com' THEN 'approved' ELSE 'none' END
-    )
+    INSERT INTO public.profiles (id, user_id, email, nickname, name, role, admin_status, created_at, updated_at)
+    VALUES (NEW.id, NEW.id, LOWER(NEW.email), v_nickname, v_nickname, v_role, v_status, NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
-      user_id = EXCLUDED.user_id,
       email = EXCLUDED.email,
+      user_id = EXCLUDED.user_id,
+      nickname = COALESCE(public.profiles.nickname, EXCLUDED.nickname),
+      name = COALESCE(public.profiles.name, EXCLUDED.name),
       role = CASE WHEN LOWER(EXCLUDED.email) = 'guillermoriveraterriza@gmail.com' THEN 'super_admin' ELSE public.profiles.role END,
-      admin_status = CASE WHEN LOWER(EXCLUDED.email) = 'guillermoriveraterriza@gmail.com' THEN 'approved' ELSE public.profiles.admin_status END;
+      admin_status = CASE WHEN LOWER(EXCLUDED.email) = 'guillermoriveraterriza@gmail.com' THEN 'approved' ELSE public.profiles.admin_status END,
+      updated_at = NOW();
   END IF;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'Error en handle_new_user: %', SQLERRM;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+$$;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created

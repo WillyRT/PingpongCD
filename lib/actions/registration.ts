@@ -17,16 +17,24 @@ export interface PlayerLookupResult {
   category?: 'sub14' | 'plus14';
 }
 
-export interface HistoricalPlayerSuggestion {
+export interface ExistingPlayerSuggestion {
   id: string;
-  name: string; // canonical name or matched alias
-  canonicalName: string;
+  name: string; // canonical name or nickname
+  nickname?: string;
+  canonicalName?: string;
   matchedAlias?: string;
   emailMasked: string;
-  rating: number;
-  matchesPlayed: number;
+  emailReal?: string;
+  birthDate?: string;
   category?: 'sub14' | 'plus14';
+  rating: number;
+  ratingDeviation?: number;
+  matchesPlayed: number;
+  declaredLevel?: number;
+  source: 'profile' | 'historical';
 }
+
+export type HistoricalPlayerSuggestion = ExistingPlayerSuggestion;
 
 /**
  * Partially obfuscates email for public search privacy (e.g. richy@hotmail.com -> r***y@hotmail.com).
@@ -42,12 +50,12 @@ function obfuscateEmail(email?: string | null): string {
 }
 
 /**
- * Public: Search historical players and aliases with their latest Glicko-2 ratings.
- * Protected with IP rate limiting (max 15 req/min) and masked emails for privacy.
+ * Public: Search existing players in active profiles and historical archive with latest Glicko-2 ratings.
+ * Protected with IP rate limiting (max 15 req/min) and executes via service role (bypassing RLS for public join).
  */
-export async function searchHistoricalPlayersAction(
+export async function searchExistingPlayersAction(
   query: string
-): Promise<ActionResponse<HistoricalPlayerSuggestion[]>> {
+): Promise<ActionResponse<ExistingPlayerSuggestion[]>> {
   try {
     const trimmed = query.trim();
     if (!trimmed || trimmed.length < 2) {
@@ -74,73 +82,138 @@ export async function searchHistoricalPlayersAction(
     }
 
     const admin = createAdminClient();
+    const map = new Map<string, ExistingPlayerSuggestion>();
 
-    // 1. Search canonical players
-    const { data: players } = await admin
-      .from('players')
-      .select(`
-        id,
-        canonical_name,
-        email,
-        category,
-        rating_states:rating_states(rating, rating_deviation, matches_played)
-      `)
-      .ilike('canonical_name', `%${trimmed}%`)
-      .limit(6);
-
-    // 2. Search aliases
-    const { data: aliases } = await admin
-      .from('player_aliases')
-      .select(`
-        alias,
-        players:player_id (
+    // 1. Search existing profiles by name, nickname, or email
+    try {
+      const { data: profiles, error: pErr } = await admin
+        .from('profiles')
+        .select(`
           id,
-          canonical_name,
+          name,
+          nickname,
           email,
+          birth_date,
           category,
-          rating_states:rating_states(rating, rating_deviation, matches_played)
-        )
-      `)
-      .ilike('alias', `%${trimmed}%`)
-      .limit(6);
-
-    const map = new Map<string, HistoricalPlayerSuggestion>();
-
-    if (players) {
-      for (const p of players) {
-        const rs = Array.isArray(p.rating_states) ? p.rating_states[0] : p.rating_states;
-        const rating = rs?.rating ? Math.round(rs.rating) : 1500;
-        const matchesPlayed = rs?.matches_played ?? 0;
-        map.set(p.id, {
-          id: p.id,
-          name: p.canonical_name,
-          canonicalName: p.canonical_name,
-          emailMasked: obfuscateEmail(p.email),
           rating,
-          matchesPlayed,
-          category: p.category as any,
-        });
+          rating_deviation,
+          matches_played,
+          declared_level
+        `)
+        .or(`name.ilike.%${trimmed}%,nickname.ilike.%${trimmed}%,email.ilike.%${trimmed}%`)
+        .limit(8);
+
+      if (!pErr && profiles) {
+        for (const p of profiles) {
+          const displayName = p.nickname || p.name;
+          const key = `profile_${p.id}`;
+          map.set(key, {
+            id: p.id,
+            name: displayName,
+            nickname: p.nickname || undefined,
+            canonicalName: p.name,
+            emailMasked: obfuscateEmail(p.email),
+            emailReal: p.email || undefined,
+            birthDate: p.birth_date || undefined,
+            category: (p.category as any) || undefined,
+            rating: Math.round(p.rating ?? 1500),
+            ratingDeviation: Math.round(p.rating_deviation ?? 350),
+            matchesPlayed: p.matches_played ?? 0,
+            declaredLevel: p.declared_level ? Number(p.declared_level) : undefined,
+            source: 'profile',
+          });
+        }
       }
+    } catch {
+      // Gracefully continue to historical search if profiles search fails
     }
 
-    if (aliases) {
-      for (const a of aliases) {
-        const p = a.players as any;
-        if (!p || map.has(p.id)) continue;
-        const rs = Array.isArray(p.rating_states) ? p.rating_states[0] : p.rating_states;
-        const rating = rs?.rating ? Math.round(rs.rating) : 1500;
-        const matchesPlayed = rs?.matches_played ?? 0;
-        map.set(p.id, {
-          id: p.id,
-          name: a.alias,
-          canonicalName: p.canonical_name,
-          matchedAlias: a.alias,
-          emailMasked: obfuscateEmail(p.email),
-          rating,
-          matchesPlayed,
-          category: p.category as any,
-        });
+    // 2. Search canonical players in historical archive
+    try {
+      const { data: players, error: plErr } = await admin
+        .from('players')
+        .select(`
+          id,
+          canonical_name,
+          user_id,
+          rating_states:rating_states(rating, rating_deviation, matches_played)
+        `)
+        .ilike('canonical_name', `%${trimmed}%`)
+        .limit(8);
+
+      if (!plErr && players) {
+        for (const p of players) {
+          const alreadyMatched = Array.from(map.values()).some(
+            (item) => item.name.toLowerCase() === p.canonical_name.toLowerCase()
+          );
+          if (alreadyMatched) continue;
+
+          const rs = Array.isArray(p.rating_states) ? p.rating_states[0] : p.rating_states;
+          const rating = rs?.rating ? Math.round(rs.rating) : 1500;
+          const rd = rs?.rating_deviation ? Math.round(rs.rating_deviation) : 350;
+          const matchesPlayed = rs?.matches_played ?? 0;
+
+          map.set(`player_${p.id}`, {
+            id: p.id,
+            name: p.canonical_name,
+            canonicalName: p.canonical_name,
+            emailMasked: '',
+            rating,
+            ratingDeviation: rd,
+            matchesPlayed,
+            source: 'historical',
+          });
+        }
       }
+    } catch {
+      // Ignore
+    }
+
+    // 3. Search aliases in historical archive
+    try {
+      const { data: aliases, error: alErr } = await admin
+        .from('player_aliases')
+        .select(`
+          alias,
+          players:player_id (
+            id,
+            canonical_name,
+            user_id,
+            rating_states:rating_states(rating, rating_deviation, matches_played)
+          )
+        `)
+        .ilike('alias', `%${trimmed}%`)
+        .limit(8);
+
+      if (!alErr && aliases) {
+        for (const a of aliases) {
+          const p = a.players as any;
+          if (!p) continue;
+          const alreadyMatched = Array.from(map.values()).some(
+            (item) => item.name.toLowerCase() === a.alias.toLowerCase()
+          );
+          if (alreadyMatched) continue;
+
+          const rs = Array.isArray(p.rating_states) ? p.rating_states[0] : p.rating_states;
+          const rating = rs?.rating ? Math.round(rs.rating) : 1500;
+          const rd = rs?.rating_deviation ? Math.round(rs.rating_deviation) : 350;
+          const matchesPlayed = rs?.matches_played ?? 0;
+
+          map.set(`alias_${a.alias}_${p.id}`, {
+            id: p.id,
+            name: a.alias,
+            canonicalName: p.canonical_name,
+            matchedAlias: a.alias,
+            emailMasked: '',
+            rating,
+            ratingDeviation: rd,
+            matchesPlayed,
+            source: 'historical',
+          });
+        }
+      }
+    } catch {
+      // Ignore
     }
 
     return {
@@ -150,10 +223,13 @@ export async function searchHistoricalPlayersAction(
   } catch (err: unknown) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Error buscando jugadores históricos',
+      error: err instanceof Error ? err.message : 'Error buscando jugadores',
     };
   }
 }
+
+/** Legacy alias for backward compatibility */
+export const searchHistoricalPlayersAction = searchExistingPlayersAction;
 
 /**
  * Public: Lookup player profile and historical rating by email.

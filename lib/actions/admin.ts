@@ -1,9 +1,10 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { resolveDisputeSchema } from '@/lib/validation/schemas';
 import { validateScoreForStage, determineWinner } from '@/lib/engine/scoring';
+import { determineAgeCategory } from '@/lib/engine/categories';
 import type { ActionResponse } from './tournament';
 
 /** Helper to verify if user has admin privileges based solely on database RBAC */
@@ -276,5 +277,221 @@ export async function resolveDisputeAction(input: {
     return { success: true };
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+export interface UpdateParticipantInput {
+  tournamentId: string;
+  userId: string;
+  name: string;
+  nickname?: string;
+  email?: string;
+  birthDateOrAge?: string;
+  declaredLevel?: number;
+}
+
+/**
+ * Admin: Update participant details (Nickname, Name, Email, Birthdate/Category, Level).
+ * Synchronizes profiles and tournament_participants.
+ */
+export async function updateParticipantAction(
+  input: UpdateParticipantInput
+): Promise<ActionResponse> {
+  try {
+    const auth = await verifyAdminUser();
+    if (!auth.authorized) {
+      return { success: false, error: 'Acceso no autorizado. Se requieren permisos de administrador.' };
+    }
+
+    const admin = createAdminClient();
+    const cleanName = input.name.trim();
+    if (!cleanName) {
+      return { success: false, error: 'El nombre / nickname no puede estar vacío.' };
+    }
+
+    const cleanNickname = (input.nickname || cleanName).trim();
+    const cleanEmail = input.email?.trim().toLowerCase() || null;
+    const clampedLevel = Math.max(0, Math.min(10, Number(input.declaredLevel) || 5));
+
+    // Fetch tournament to determine reference date for category
+    const { data: tournament } = await admin
+      .from('tournaments')
+      .select('*')
+      .eq('id', input.tournamentId)
+      .single();
+
+    if (!tournament) return { success: false, error: 'Torneo no encontrado' };
+
+    const refDate = (tournament as any).start_date || tournament.created_at;
+    const category = input.birthDateOrAge
+      ? determineAgeCategory(input.birthDateOrAge, refDate)
+      : 'plus14';
+
+    // 1. Update Profile
+    const profileUpdate: Record<string, any> = {
+      name: cleanName,
+      nickname: cleanNickname,
+      email: cleanEmail,
+      category,
+      declared_level: clampedLevel,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (input.birthDateOrAge && input.birthDateOrAge.includes('-')) {
+      profileUpdate.birth_date = input.birthDateOrAge;
+    }
+
+    await admin
+      .from('profiles')
+      .update(profileUpdate)
+      .eq('id', input.userId);
+
+    // 2. Update Tournament Participant
+    await admin
+      .from('tournament_participants')
+      .update({
+        category,
+        declared_level: clampedLevel,
+      })
+      .eq('tournament_id', input.tournamentId)
+      .eq('user_id', input.userId);
+
+    // 3. Audit Log
+    await admin.from('audit_logs').insert({
+      actor_id: auth.userId,
+      action: 'admin_update_participant',
+      entity_type: 'tournament_participants',
+      entity_id: `${input.tournamentId}_${input.userId}`,
+      new_data: { name: cleanName, nickname: cleanNickname, email: cleanEmail, category, declared_level: clampedLevel },
+    });
+
+    revalidatePath(`/admin/tournaments/${input.tournamentId}`);
+    revalidatePath(`/t/${tournament.slug}`);
+    revalidatePath('/me');
+    revalidatePath('/player');
+
+    return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Error actualizando participante' };
+  }
+}
+
+export interface DeleteParticipantInput {
+  tournamentId: string;
+  userId: string;
+}
+
+/**
+ * Admin: Delete or Withdraw participant from tournament.
+ * - In registration/draft phase: removes participant cleanly.
+ * - In active phase (group_stage/bracket_stage): processes W.O. on pending matches without corrupting data integrity.
+ */
+export async function deleteParticipantAction(
+  input: DeleteParticipantInput
+): Promise<ActionResponse> {
+  try {
+    const auth = await verifyAdminUser();
+    if (!auth.authorized) {
+      return { success: false, error: 'Acceso no autorizado. Se requieren permisos de administrador.' };
+    }
+
+    const admin = createAdminClient();
+
+    const { data: tournament } = await admin
+      .from('tournaments')
+      .select('*')
+      .eq('id', input.tournamentId)
+      .single();
+
+    if (!tournament) return { success: false, error: 'Torneo no encontrado' };
+
+    const status = tournament.status;
+
+    if (status === 'draft' || status === 'registration') {
+      // Clean removal during registration phase
+      await admin
+        .from('tournament_participants')
+        .delete()
+        .eq('tournament_id', input.tournamentId)
+        .eq('user_id', input.userId);
+
+      // Decrement total_players in config if present
+      const { data: config } = await admin
+        .from('tournament_config')
+        .select('total_players')
+        .eq('tournament_id', input.tournamentId)
+        .maybeSingle();
+
+      if (config && config.total_players && config.total_players > 0) {
+        await admin
+          .from('tournament_config')
+          .update({ total_players: config.total_players - 1 })
+          .eq('tournament_id', input.tournamentId);
+      }
+    } else {
+      // Active tournament (group_stage or bracket_stage):
+      // Fetch all matches for this participant in this tournament
+      const { data: matches } = await admin
+        .from('matches')
+        .select('*')
+        .eq('tournament_id', input.tournamentId)
+        .or(`player1_id.eq.${input.userId},player2_id.eq.${input.userId}`);
+
+      if (matches) {
+        for (const m of matches) {
+          if (m.status === 'pending' || m.status === 'submitted') {
+            // Process Walkover (W.O.): Opponent wins with standard default score
+            const isP1 = m.player1_id === input.userId;
+            const winnerId = isP1 ? m.player2_id : m.player1_id;
+            const targetScore = m.stage === 'group' ? 7 : 11;
+
+            await admin
+              .from('matches')
+              .update({
+                status: 'confirmed',
+                winner_id: winnerId,
+                score_player1: isP1 ? 0 : targetScore,
+                score_player2: isP1 ? targetScore : 0,
+                confirmed_by: auth.userId,
+                confirmed_at: new Date().toISOString(),
+              })
+              .eq('id', m.id);
+
+            // Advance winner in bracket if knockout stage
+            if (m.next_match_id && m.next_slot) {
+              const slotField = m.next_slot === 1 ? 'player1_id' : 'player2_id';
+              await admin
+                .from('matches')
+                .update({ [slotField]: winnerId, updated_at: new Date().toISOString() })
+                .eq('id', m.next_match_id);
+            }
+          }
+        }
+      }
+
+      // Remove from tournament participants
+      await admin
+        .from('tournament_participants')
+        .delete()
+        .eq('tournament_id', input.tournamentId)
+        .eq('user_id', input.userId);
+    }
+
+    await admin.from('audit_logs').insert({
+      actor_id: auth.userId,
+      action: 'admin_delete_participant',
+      entity_type: 'tournament_participants',
+      entity_id: `${input.tournamentId}_${input.userId}`,
+      new_data: { phase: status },
+    });
+
+    revalidatePath(`/admin/tournaments/${input.tournamentId}`);
+    revalidatePath(`/t/${tournament.slug}`);
+    revalidatePath('/me');
+    revalidatePath('/player');
+
+    return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Error eliminando participante' };
   }
 }

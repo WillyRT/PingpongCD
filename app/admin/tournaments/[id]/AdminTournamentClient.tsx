@@ -22,10 +22,14 @@ import {
   reassignParticipantGroupAction,
   finishTournamentAction,
 } from '@/lib/actions/tournament';
-import { resolveDisputeAction } from '@/lib/actions/admin';
+import {
+  resolveDisputeAction,
+  updateParticipantAction,
+  deleteParticipantAction,
+} from '@/lib/actions/admin';
 import { calculateStandings, type ConfirmedMatch } from '@/lib/engine/standings';
 import { calculateCompetitiveBalanceIndex } from '@/lib/engine/cbi';
-import { getCategoryLabel } from '@/lib/engine/categories';
+import { getCategoryLabel, determineAgeCategory } from '@/lib/engine/categories';
 import type { AgeCategory } from '@/lib/types/domain';
 
 interface AdminTournamentClientProps {
@@ -52,6 +56,27 @@ export function AdminTournamentClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [qualifiersPerGroup, setQualifiersPerGroup] = useState<number>(config?.qualifiers_per_group ?? 2);
+
+  // Participant Management (CRUD) state
+  const [participantSearch, setParticipantSearch] = useState('');
+  const [editingParticipant, setEditingParticipant] = useState<{
+    userId: string;
+    name: string;
+    nickname: string;
+    email: string;
+    birthDateOrAge: string;
+    declaredLevel: number;
+    category: AgeCategory;
+  } | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const [deletingParticipant, setDeletingParticipant] = useState<{
+    userId: string;
+    name: string;
+  } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Dispute resolution state
   const [selectedDisputeMatch, setSelectedDisputeMatch] = useState<string | null>(null);
@@ -163,6 +188,81 @@ export function AdminTournamentClient({
     if (!res.success) setError(res.error || 'Failed to resolve dispute');
     else setSelectedDisputeMatch(null);
     setLoading(false);
+  };
+
+  // Participant filtering by search
+  const displayedParticipants = filteredParticipants.filter((p) => {
+    if (!participantSearch.trim()) return true;
+    const q = participantSearch.toLowerCase().trim();
+    const name = (p.profiles?.name || '').toLowerCase();
+    const nickname = (p.profiles?.nickname || '').toLowerCase();
+    const email = (p.profiles?.email || '').toLowerCase();
+    return name.includes(q) || nickname.includes(q) || email.includes(q);
+  });
+
+  const handleOpenEdit = (p: TournamentParticipantRow & { profiles?: ProfileRow }) => {
+    setEditError(null);
+    const prof = p.profiles;
+    setEditingParticipant({
+      userId: p.user_id,
+      name: prof?.name || '',
+      nickname: prof?.nickname || prof?.name || '',
+      email: prof?.email || '',
+      birthDateOrAge: prof?.birth_date || '20',
+      declaredLevel: p.declared_level ?? prof?.declared_level ?? 5.0,
+      category: (p.category as AgeCategory) || 'plus14',
+    });
+  };
+
+  const handleSaveParticipantEdit = async () => {
+    if (!editingParticipant) return;
+    setEditLoading(true);
+    setEditError(null);
+    try {
+      const res = await updateParticipantAction({
+        tournamentId: tournament.id,
+        userId: editingParticipant.userId,
+        name: editingParticipant.name,
+        nickname: editingParticipant.nickname,
+        email: editingParticipant.email,
+        birthDateOrAge: editingParticipant.birthDateOrAge,
+        declaredLevel: editingParticipant.declaredLevel,
+      });
+
+      if (!res.success) {
+        setEditError(res.error || 'Error al actualizar el participante');
+      } else {
+        setEditingParticipant(null);
+        window.location.reload();
+      }
+    } catch (err: any) {
+      setEditError(err?.message || 'Error inesperado');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingParticipant) return;
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      const res = await deleteParticipantAction({
+        tournamentId: tournament.id,
+        userId: deletingParticipant.userId,
+      });
+
+      if (!res.success) {
+        setDeleteError(res.error || 'Error al eliminar el participante');
+      } else {
+        setDeletingParticipant(null);
+        window.location.reload();
+      }
+    } catch (err: any) {
+      setDeleteError(err?.message || 'Error inesperado');
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const appUrl = typeof window !== 'undefined' ? window.location.origin : '';
@@ -357,56 +457,123 @@ export function AdminTournamentClient({
               </div>
             </div>
 
-            {/* Participants list with manual group reassignment */}
+            {/* Participants list with search and CRUD management */}
             <div className="p-6 rounded-2xl bg-[var(--card)] border border-[var(--border)] space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-base">Participantes Inscritos ({filteredParticipants.length})</h3>
-                <span className="text-xs text-[var(--muted-foreground)]">
-                  Puedes reasignar grupos manualmente antes del inicio
-                </span>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-extrabold text-base">Gestión de Participantes ({filteredParticipants.length})</h3>
+                  <span className="text-xs text-[var(--muted-foreground)]">
+                    Edita datos, modifica nivel/categoría o gestiona bajas con resolución W.O.
+                  </span>
+                </div>
               </div>
-              {filteredParticipants.length === 0 ? (
-                <p className="text-sm text-[var(--muted-foreground)]">No hay jugadores inscritos en esta categoría.</p>
+
+              {/* Search bar */}
+              <div className="relative">
+                <input
+                  type="text"
+                  value={participantSearch}
+                  onChange={(e) => setParticipantSearch(e.target.value)}
+                  placeholder="🔍 Buscar por nombre, nickname o email..."
+                  className="w-full px-4 py-2.5 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-sm focus:outline-none focus:border-[var(--primary)]"
+                />
+                {participantSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setParticipantSearch('')}
+                    className="absolute right-3 top-2.5 text-xs text-[var(--muted-foreground)] hover:text-white"
+                  >
+                    ✕ Limpiar
+                  </button>
+                )}
+              </div>
+
+              {displayedParticipants.length === 0 ? (
+                <p className="text-sm text-[var(--muted-foreground)] py-6 text-center">
+                  {participantSearch ? 'No se encontraron participantes con esa búsqueda.' : 'No hay jugadores inscritos en esta categoría.'}
+                </p>
               ) : (
                 <div className="divide-y divide-[var(--border)]">
-                  {filteredParticipants.map((p, idx) => (
-                    <div key={p.user_id} className="py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-mono text-[var(--muted-foreground)] w-6">
-                          #{p.seed_number ?? idx + 1}
-                        </span>
-                        <div>
-                          <div className="font-medium text-sm flex items-center gap-2">
-                            {p.profiles?.name || 'Jugador'}
-                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[var(--secondary)]">
-                              Nivel {p.declared_level ?? p.profiles?.declared_level ?? 5.0}
-                            </span>
+                  {displayedParticipants.map((p, idx) => {
+                    const prof = p.profiles;
+                    const displayName = prof?.nickname || prof?.name || 'Jugador';
+                    const categoryLabel = p.category ? getCategoryLabel(p.category as AgeCategory) : 'General';
+                    const isSub14 = p.category === 'sub14';
+
+                    return (
+                      <div key={p.user_id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-xs font-mono text-[var(--muted-foreground)] w-6 shrink-0">
+                            #{p.seed_number ?? idx + 1}
+                          </span>
+                          <div className="w-9 h-9 rounded-full gradient-primary flex items-center justify-center text-white text-xs font-black shrink-0 shadow">
+                            {displayName.charAt(0).toUpperCase()}
                           </div>
-                          <div className="text-xs text-[var(--muted-foreground)]">
-                            Rating: {p.profiles?.rating?.toFixed(0) ?? 1500} • Partidos: {p.profiles?.matches_played ?? 0}
+                          <div className="min-w-0">
+                            <div className="font-semibold text-sm flex items-center gap-2 flex-wrap">
+                              <span className="text-white truncate">{displayName}</span>
+                              {prof?.nickname && prof?.name && prof.nickname !== prof.name && (
+                                <span className="text-xs text-[var(--muted-foreground)]">({prof.name})</span>
+                              )}
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                                isSub14 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                              }`}>
+                                {categoryLabel}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[var(--secondary)] text-[var(--muted-foreground)]">
+                                Nivel {p.declared_level ?? prof?.declared_level ?? 5.0}
+                              </span>
+                            </div>
+                            <div className="text-xs text-[var(--muted-foreground)] mt-0.5 flex items-center gap-2 flex-wrap">
+                              {prof?.email && <span className="truncate">{prof.email}</span>}
+                              {prof?.email && <span>•</span>}
+                              <span>Rating: <strong className="text-white">{prof?.rating?.toFixed(0) ?? 1500}</strong></span>
+                              <span>•</span>
+                              <span>Partidos: {prof?.matches_played ?? 0}</span>
+                            </div>
                           </div>
+                        </div>
+
+                        {/* Actions: Reassign group, Edit modal button, Delete button */}
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          {filteredGroups.length > 0 && (
+                            <select
+                              disabled={loading || tournament.status === 'finished'}
+                              value={p.group_id ?? ''}
+                              onChange={(e) => handleReassignGroup(p.user_id, e.target.value)}
+                              className="text-xs px-2.5 py-1.5 rounded-lg bg-[var(--secondary)] border border-[var(--border)] focus:outline-none"
+                              title="Reasignar grupo"
+                            >
+                              <option value="">Sin Grupo</option>
+                              {filteredGroups.map((g) => (
+                                <option key={g.id} value={g.id}>
+                                  Grupo {g.group_code}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(p)}
+                            className="px-2.5 py-1.5 rounded-lg bg-[var(--secondary)] hover:bg-[var(--secondary)]/80 text-xs font-semibold text-blue-400 flex items-center gap-1 transition"
+                            title="Editar datos del participante"
+                          >
+                            ✏️ Editar
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setDeletingParticipant({ userId: p.user_id, name: displayName })}
+                            className="px-2.5 py-1.5 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-xs font-semibold text-red-400 border border-red-500/30 flex items-center gap-1 transition"
+                            title="Eliminar o desinscribir participante"
+                          >
+                            🗑️
+                          </button>
                         </div>
                       </div>
-
-                      {filteredGroups.length > 0 && (
-                        <div className="flex items-center gap-2">
-                          <select
-                            disabled={loading || tournament.status === 'finished'}
-                            value={p.group_id ?? ''}
-                            onChange={(e) => handleReassignGroup(p.user_id, e.target.value)}
-                            className="text-xs px-2.5 py-1 rounded-lg bg-[var(--secondary)] border border-[var(--border)] focus:outline-none"
-                          >
-                            <option value="">Sin Grupo</option>
-                            {filteredGroups.map((g) => (
-                              <option key={g.id} value={g.id}>
-                                Grupo {g.group_code}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -620,6 +787,188 @@ export function AdminTournamentClient({
           </div>
         )}
       </div>
+
+      {/* EDIT PARTICIPANT MODAL */}
+      {editingParticipant && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex items-center justify-between">
+              <h3 className="font-extrabold text-lg">Editar Participante</h3>
+              <button
+                type="button"
+                onClick={() => setEditingParticipant(null)}
+                className="text-sm text-[var(--muted-foreground)] hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+                {editError}
+              </div>
+            )}
+
+            <div className="space-y-3 text-sm">
+              <div>
+                <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1 uppercase">
+                  Nombre / Nickname
+                </label>
+                <input
+                  type="text"
+                  value={editingParticipant.name}
+                  onChange={(e) =>
+                    setEditingParticipant({
+                      ...editingParticipant,
+                      name: e.target.value,
+                      nickname: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-sm focus:outline-none focus:border-[var(--primary)]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1 uppercase">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={editingParticipant.email}
+                  onChange={(e) =>
+                    setEditingParticipant({ ...editingParticipant, email: e.target.value })
+                  }
+                  placeholder="jugador@ejemplo.com"
+                  className="w-full px-3 py-2 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-sm focus:outline-none focus:border-[var(--primary)]"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-[var(--muted-foreground)] uppercase">
+                    Fecha de Nacimiento o Edad
+                  </label>
+                  <span className="text-[11px] font-bold text-amber-400">
+                    {editingParticipant.category === 'sub14' ? '🧒 Sub-14' : '🔵 +14'}
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={editingParticipant.birthDateOrAge}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const cat = determineAgeCategory(val);
+                    setEditingParticipant({
+                      ...editingParticipant,
+                      birthDateOrAge: val,
+                      category: cat,
+                    });
+                  }}
+                  placeholder="Ej. 13 ó 2012-04-15"
+                  className="w-full px-3 py-2 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-sm focus:outline-none focus:border-[var(--primary)]"
+                />
+                <p className="mt-1 text-[11px] text-[var(--muted-foreground)]">
+                  {editingParticipant.category === 'sub14' ? '≤ 14 años: Asignado a Sub-14' : '> 14 años: Asignado a +14 (Absoluta)'}
+                </p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-[var(--muted-foreground)] uppercase">
+                    Nivel Autodeclarado (0 a 10)
+                  </label>
+                  <span className="font-bold text-xs text-[var(--primary)]">
+                    {editingParticipant.declaredLevel.toFixed(1)} / 10
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  step="0.5"
+                  value={editingParticipant.declaredLevel}
+                  onChange={(e) =>
+                    setEditingParticipant({
+                      ...editingParticipant,
+                      declaredLevel: parseFloat(e.target.value),
+                    })
+                  }
+                  className="w-full accent-[var(--primary)]"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border)]">
+              <button
+                type="button"
+                onClick={() => setEditingParticipant(null)}
+                className="px-4 py-2 rounded-xl bg-[var(--secondary)] text-xs font-semibold hover:bg-[var(--secondary)]/80"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={editLoading}
+                onClick={handleSaveParticipantEdit}
+                className="px-4 py-2 rounded-xl gradient-primary text-white text-xs font-bold shadow-md hover:opacity-90 disabled:opacity-50"
+              >
+                {editLoading ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE PARTICIPANT CONFIRMATION DIALOG */}
+      {deletingParticipant && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[var(--card)] border border-red-500/30 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center text-lg font-bold">
+                ⚠️
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base text-red-400">Eliminar Participante</h3>
+                <p className="text-xs text-[var(--muted-foreground)]">{deletingParticipant.name}</p>
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+                {deleteError}
+              </div>
+            )}
+
+            <p className="text-xs text-[var(--foreground)] leading-relaxed">
+              {tournament.status === 'draft' || tournament.status === 'registration' ? (
+                '¿Estás seguro de desinscribir a este participante? Se eliminará del torneo sin alterar partidos.'
+              ) : (
+                <span className="text-amber-400 font-semibold block">
+                  El torneo está en curso ({tournament.status}). Al eliminar al participante, todos sus partidos pendientes se resolverán automáticamente por W.O. (Walkover) dando la victoria al rival, protegiendo la integridad del cuadro.
+                </span>
+              )}
+            </p>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border)]">
+              <button
+                type="button"
+                onClick={() => setDeletingParticipant(null)}
+                className="px-4 py-2 rounded-xl bg-[var(--secondary)] text-xs font-semibold hover:bg-[var(--secondary)]/80"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={deleteLoading}
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md disabled:opacity-50"
+              >
+                {deleteLoading ? 'Eliminando...' : 'Confirmar Eliminación'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

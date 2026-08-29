@@ -64,7 +64,26 @@ export async function GET(request: Request) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(`${origin}${safeRedirect}`);
+      const { data: { user } } = await supabase.auth.getUser();
+      let roleDefault = '/me';
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role, admin_status')
+          .or(`id.eq.${user.id},user_id.eq.${user.id}`)
+          .maybeSingle();
+
+        const isSuperAdmin =
+          user.email?.toLowerCase() === 'guillermoriveraterriza@gmail.com' ||
+          profile?.role === 'super_admin';
+        const isAdmin = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_status === 'approved');
+
+        roleDefault = isAdmin ? '/admin' : '/me';
+      }
+
+      const targetPath = rawRedirect ? validateRedirectUrl(rawRedirect, roleDefault) : roleDefault;
+      return NextResponse.redirect(`${origin}${targetPath}`);
     }
   }
 

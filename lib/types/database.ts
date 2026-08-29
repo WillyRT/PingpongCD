@@ -125,6 +125,7 @@ export interface ProfileRow {
   id: string;
   user_id?: string | null;
   name: string;
+  nickname?: string | null;
   email: string | null;
   phone: string | null;
   role: 'super_admin' | 'admin' | 'player';

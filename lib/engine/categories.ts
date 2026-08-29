@@ -21,6 +21,19 @@ export function determineAgeCategory(
     return birthDateOrAge <= 14 ? 'sub14' : 'plus14';
   }
 
+  if (typeof birthDateOrAge === 'string') {
+    const num = Number(birthDateOrAge);
+    if (
+      !isNaN(num) &&
+      num > 0 &&
+      num < 120 &&
+      !birthDateOrAge.includes('-') &&
+      !birthDateOrAge.includes('/')
+    ) {
+      return num <= 14 ? 'sub14' : 'plus14';
+    }
+  }
+
   const birth = new Date(birthDateOrAge);
   if (isNaN(birth.getTime())) {
     // Default fallback to plus14 if invalid date
