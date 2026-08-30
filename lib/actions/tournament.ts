@@ -861,3 +861,70 @@ export async function promoteSub14FinalistsAction(input: {
     };
   }
 }
+
+/**
+ * Admin: Complete cascade deletion of a tournament and all its associated data.
+ */
+export async function deleteTournamentAction(tournamentId: string): Promise<ActionResponse<{ deleted: boolean }>> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user?.email) {
+      return { success: false, error: 'No autenticado: Inicia sesión para continuar' };
+    }
+
+    const cleanEmail = user.email.toLowerCase().trim();
+    const adminClient = createAdminClient();
+
+    const { data: profile } = await adminClient
+      .from('profiles')
+      .select('role, admin_status')
+      .eq('email', cleanEmail)
+      .maybeSingle();
+
+    const isAdmin =
+      cleanEmail === 'guillermoriveraterriza@gmail.com' ||
+      profile?.role === 'super_admin' ||
+      (profile?.role === 'admin' && profile?.admin_status === 'approved');
+
+    if (!isAdmin) {
+      return { success: false, error: 'Permisos insuficientes para eliminar torneos' };
+    }
+
+    // 1. Eliminar partidos asociados al torneo
+    await adminClient.from('matches').delete().eq('tournament_id', tournamentId);
+
+    // 2. Eliminar grupos del torneo
+    await adminClient.from('tournament_groups').delete().eq('tournament_id', tournamentId);
+
+    // 3. Eliminar participantes inscritos
+    await adminClient.from('tournament_participants').delete().eq('tournament_id', tournamentId);
+
+    // 4. Eliminar configuración del torneo
+    await adminClient.from('tournament_config').delete().eq('tournament_id', tournamentId);
+
+    // 5. Eliminar auditoría o registros relacionados si existiesen
+    await adminClient.from('audit_logs').delete().eq('entity_id', tournamentId);
+
+    // 6. Eliminar el registro del torneo
+    const { error: deleteError } = await adminClient
+      .from('tournaments')
+      .delete()
+      .eq('id', tournamentId);
+
+    if (deleteError) throw deleteError;
+
+    // Revalidar rutas
+    revalidatePath('/');
+    revalidatePath('/tournaments');
+    revalidatePath('/historico');
+    revalidatePath('/admin');
+
+    return { success: true, data: { deleted: true } };
+  } catch (error: any) {
+    console.error('Error al eliminar torneo:', error);
+    return { success: false, error: error?.message || 'Error al eliminar el torneo' };
+  }
+}
+

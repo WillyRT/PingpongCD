@@ -929,21 +929,18 @@ async function runMasterSeed() {
   console.log('===========================================================');
   console.log('Target Supabase:', supabaseUrl);
 
-  // 1. Clean previous database records
-  console.log('\n🧹 Cleaning previous database records...');
-  await supabase.from('rating_snapshots').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await supabase.from('rating_states').delete().neq('player_id', '00000000-0000-0000-0000-000000000000');
-  await supabase.from('matches').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await supabase.from('historical_matches').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await supabase.from('historical_groups').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await supabase.from('tournament_groups').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await supabase.from('tournament_participants').delete().neq('tournament_id', '00000000-0000-0000-0000-000000000000');
-  await supabase.from('historical_tournaments').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await supabase.from('tournaments').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await supabase.from('player_aliases').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await supabase.from('players').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await supabase.from('profiles').delete().not('email', 'in', '("guillermoriveraterriza@gmail.com","wriveraterriza@gmail.com")');
-  console.log('Cleared previous database records cleanly.');
+  // 1. Non-destructive cleanup: only touch the 8 canonical historical tournaments
+  console.log('\n🧹 Preparing canonical historical records (Non-destructive)...');
+  const canonicalTournamentIds = AUDITED_TOURNAMENTS.map(t => deterministicUUID(`tourney-${t.slug}`));
+
+  // Only refresh matches, groups, participants and snapshots belonging to canonical tournaments
+  await supabase.from('matches').delete().in('tournament_id', canonicalTournamentIds);
+  await supabase.from('historical_matches').delete().in('historical_tournament_id', canonicalTournamentIds);
+  await supabase.from('tournament_groups').delete().in('tournament_id', canonicalTournamentIds);
+  await supabase.from('historical_groups').delete().in('historical_tournament_id', canonicalTournamentIds);
+  await supabase.from('tournament_participants').delete().in('tournament_id', canonicalTournamentIds);
+  await supabase.from('rating_snapshots').delete().in('historical_tournament_id', canonicalTournamentIds);
+  console.log('Refreshed canonical historical records. All dynamic tournaments and user profiles preserved.');
 
   // 2. Discover all canonical players from matches & name map
   const canonicalNamesSet = new Set();

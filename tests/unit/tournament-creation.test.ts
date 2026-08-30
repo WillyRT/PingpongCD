@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createTournamentAction } from '@/lib/actions/tournament';
+import { createTournamentAction, deleteTournamentAction } from '@/lib/actions/tournament';
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
@@ -193,5 +193,110 @@ describe('Robustez de Creación de Torneos (lib/actions/tournament.ts)', () => {
         status: 'draft',
       })
     );
+  });
+});
+
+describe('Eliminación en Cascada de Torneos (deleteTournamentAction)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('rejects deletion when user is not authenticated', async () => {
+    const { createClient } = await import('@/lib/supabase/server');
+    (createClient as any).mockReturnValue({
+      auth: {
+        getUser: async () => ({ data: { user: null } }),
+      },
+    });
+
+    const res = await deleteTournamentAction('some-tourney-id');
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/No autenticado/i);
+  });
+
+  it('rejects deletion when user lacks admin privileges', async () => {
+    const { createClient, createAdminClient } = await import('@/lib/supabase/server');
+    (createClient as any).mockReturnValue({
+      auth: {
+        getUser: async () => ({
+          data: { user: { id: 'player-id', email: 'regular@player.com' } },
+        }),
+      },
+    });
+
+    (createAdminClient as any).mockReturnValue({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({
+              data: { role: 'player', admin_status: 'none' },
+            }),
+          }),
+        }),
+      }),
+    });
+
+    const res = await deleteTournamentAction('some-tourney-id');
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/Permisos insuficientes/i);
+  });
+
+  it('performs full cascade deletion when admin requests it', async () => {
+    const { createClient, createAdminClient } = await import('@/lib/supabase/server');
+    const { revalidatePath } = await import('next/cache');
+
+    const mockMatchesDelete = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+    const mockGroupsDelete = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+    const mockParticipantsDelete = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+    const mockConfigDelete = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+    const mockAuditDelete = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+    const mockTournamentDeleteEq = vi.fn().mockResolvedValue({ error: null });
+    const mockTournamentDelete = vi.fn().mockReturnValue({ eq: mockTournamentDeleteEq });
+
+    (createClient as any).mockReturnValue({
+      auth: {
+        getUser: async () => ({
+          data: { user: { id: 'superadmin-id', email: 'guillermoriveraterriza@gmail.com' } },
+        }),
+      },
+    });
+
+    (createAdminClient as any).mockReturnValue({
+      from: (table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: { role: 'super_admin', admin_status: 'approved' },
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'matches') return { delete: mockMatchesDelete };
+        if (table === 'tournament_groups') return { delete: mockGroupsDelete };
+        if (table === 'tournament_participants') return { delete: mockParticipantsDelete };
+        if (table === 'tournament_config') return { delete: mockConfigDelete };
+        if (table === 'audit_logs') return { delete: mockAuditDelete };
+        if (table === 'tournaments') return { delete: mockTournamentDelete };
+        return { delete: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) };
+      },
+    });
+
+    const res = await deleteTournamentAction('target-tourney-123');
+
+    expect(res.success).toBe(true);
+    expect(res.data?.deleted).toBe(true);
+    expect(mockMatchesDelete).toHaveBeenCalled();
+    expect(mockGroupsDelete).toHaveBeenCalled();
+    expect(mockParticipantsDelete).toHaveBeenCalled();
+    expect(mockTournamentDelete).toHaveBeenCalled();
+    expect(mockTournamentDeleteEq).toHaveBeenCalledWith('id', 'target-tourney-123');
+
+    expect(revalidatePath).toHaveBeenCalledWith('/');
+    expect(revalidatePath).toHaveBeenCalledWith('/tournaments');
+    expect(revalidatePath).toHaveBeenCalledWith('/historico');
+    expect(revalidatePath).toHaveBeenCalledWith('/admin');
   });
 });

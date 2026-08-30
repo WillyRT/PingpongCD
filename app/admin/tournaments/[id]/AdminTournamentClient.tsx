@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type {
   TournamentRow,
@@ -22,6 +23,7 @@ import {
   configureQualifiersAndGenerateBracketAction,
   reassignParticipantGroupAction,
   finishTournamentAction,
+  deleteTournamentAction,
 } from '@/lib/actions/tournament';
 import {
   resolveDisputeAction,
@@ -53,11 +55,35 @@ export function AdminTournamentClient({
   auditLogs,
   currentUserId,
 }: AdminTournamentClientProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'overview' | 'groups' | 'qualifiers' | 'bracket' | 'disputes' | 'audit' | 'qr'>('overview');
   const [selectedCategory, setSelectedCategory] = useState<AgeCategory | 'all'>('plus14');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [qualifiersPerGroup, setQualifiersPerGroup] = useState<number>(config?.qualifiers_per_group ?? 2);
+
+  // Tournament Deletion state
+  const [showDeleteTournamentModal, setShowDeleteTournamentModal] = useState(false);
+  const [deleteTournamentLoading, setDeleteTournamentLoading] = useState(false);
+  const [deleteTournamentError, setDeleteTournamentError] = useState<string | null>(null);
+
+  const handleConfirmDeleteTournament = async () => {
+    setDeleteTournamentLoading(true);
+    setDeleteTournamentError(null);
+    try {
+      const res = await deleteTournamentAction(tournament.id);
+      if (!res.success) {
+        setDeleteTournamentError(res.error || 'Error al eliminar el torneo');
+        setDeleteTournamentLoading(false);
+      } else {
+        setShowDeleteTournamentModal(false);
+        router.push('/admin');
+      }
+    } catch (err: any) {
+      setDeleteTournamentError(err?.message || 'Error inesperado');
+      setDeleteTournamentLoading(false);
+    }
+  };
 
   // Participant Management (CRUD) state
   const [participantSearch, setParticipantSearch] = useState('');
@@ -330,6 +356,15 @@ export function AdminTournamentClient({
             <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${statusColors[tournament.status] ?? 'bg-gray-500/20'}`}>
               {tournament.status.replace('_', ' ')}
             </span>
+            <button
+              type="button"
+              onClick={() => setShowDeleteTournamentModal(true)}
+              className="px-3 py-1 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-bold transition flex items-center gap-1 shadow-sm"
+              title="Eliminar permanentemente este torneo"
+            >
+              <span>🗑️</span>
+              <span className="hidden sm:inline">Eliminar Torneo</span>
+            </button>
           </div>
         </div>
       </header>
@@ -1145,6 +1180,61 @@ export function AdminTournamentClient({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Tournament Modal */}
+      {showDeleteTournamentModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="max-w-md w-full p-6 rounded-3xl bg-[var(--card)] border border-red-500/40 shadow-2xl space-y-4 animate-scale-in">
+            <div className="w-12 h-12 rounded-2xl bg-red-500/15 text-red-400 flex items-center justify-center text-2xl border border-red-500/30">
+              ⚠️
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-white">¿Eliminar permanentemente el torneo?</h3>
+              <p className="text-xs text-[var(--muted-foreground)] mt-2 leading-relaxed">
+                ¿Estás seguro de que deseas eliminar permanentemente el torneo <strong className="text-white">&quot;{tournament.name}&quot;</strong> y todos sus partidos, actas y participantes? Esta acción no se puede deshacer.
+              </p>
+            </div>
+
+            {deleteTournamentError && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+                {deleteTournamentError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteTournamentModal(false);
+                  setDeleteTournamentError(null);
+                }}
+                disabled={deleteTournamentLoading}
+                className="px-4 py-2.5 rounded-xl bg-[var(--secondary)] text-xs font-bold hover:bg-[var(--secondary)]/80 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteTournament}
+                disabled={deleteTournamentLoading}
+                className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-lg transition flex items-center gap-1.5"
+              >
+                {deleteTournamentLoading ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🗑️</span>
+                    <span>Sí, eliminar torneo</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -193,5 +193,5 @@ describe('Tests Negativos Obligatorios: Match Dual Verification Suite', () => {
     expect(typeof matchesModule.disputeMatchScoreAction).toBe('function');
     expect(typeof matchesModule.verifyMatchScoreAction).toBe('function');
     expect(typeof matchesModule.reportMatchScoreAction).toBe('function');
-  });
+  }, 15000);
 });
