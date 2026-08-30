@@ -227,6 +227,7 @@ export interface MatchRow {
   status:
     | 'pending'
     | 'submitted'
+    | 'reported'
     | 'confirmed'
     | 'disputed'
     | 'scheduled'

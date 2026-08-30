@@ -170,4 +170,28 @@ describe('Tests Negativos Obligatorios: Match Dual Verification Suite', () => {
     expect(match.score_player2).toBe(7);
     expect(match.verified_by_id).toBe('referee-arbitro-principal');
   });
+
+  it('Test 6: Superadmin override pasa el partido a confirmed inmediatamente sin esperar al rival', () => {
+    const match = createBaseMatch();
+    match.status = 'reported';
+
+    const adminResult = verifyMatchAuthorization(
+      match,
+      'super-admin-guillermo',
+      'confirm',
+      'super_admin'
+    );
+
+    expect(adminResult.success).toBe(true);
+    expect(match.status).toBe('completed');
+    expect(match.verified_by_id).toBe('super-admin-guillermo');
+  });
+
+  it('Test 7: Las Server Actions oficiales confirmMatchScoreAction y disputeMatchScoreAction están exportadas', async () => {
+    const matchesModule = await import('../../lib/actions/matches');
+    expect(typeof matchesModule.confirmMatchScoreAction).toBe('function');
+    expect(typeof matchesModule.disputeMatchScoreAction).toBe('function');
+    expect(typeof matchesModule.verifyMatchScoreAction).toBe('function');
+    expect(typeof matchesModule.reportMatchScoreAction).toBe('function');
+  });
 });

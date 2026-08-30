@@ -1,7 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { reportMatchScoreAction, verifyMatchScoreAction } from '@/lib/actions/matches';
+import {
+  reportMatchScoreAction,
+  verifyMatchScoreAction,
+  confirmMatchScoreAction,
+  disputeMatchScoreAction,
+} from '@/lib/actions/matches';
 
 interface PlayerActiveMatchCardProps {
   match: {
@@ -41,7 +46,10 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
   const opponentScore = isPlayer1 ? match.scorePlayer2 : match.scorePlayer1;
   const myScore = isPlayer1 ? match.scorePlayer1 : match.scorePlayer2;
 
-  const isPendingVerification = match.status === 'pending_verification' || match.status === 'submitted';
+  const isPendingVerification =
+    match.status === 'pending_verification' ||
+    match.status === 'submitted' ||
+    match.status === 'reported';
   const isCompleted = match.status === 'confirmed' || match.status === 'completed';
   const isDisputed = match.status === 'disputed';
 
@@ -73,10 +81,7 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
     setLoading(true);
     setError(null);
     try {
-      const res = await verifyMatchScoreAction({
-        matchId: match.id,
-        action: 'confirm',
-      });
+      const res = await confirmMatchScoreAction(match.id);
 
       if (!res.success) {
         setError(res.error || 'Error confirmando resultado');
@@ -95,11 +100,10 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
     setLoading(true);
     setError(null);
     try {
-      const res = await verifyMatchScoreAction({
-        matchId: match.id,
-        action: 'dispute',
-        disputeReason: disputeReason.trim() || 'Desacuerdo con el tanteo reportado por el rival.',
-      });
+      const res = await disputeMatchScoreAction(
+        match.id,
+        disputeReason.trim() || 'Desacuerdo con el tanteo reportado por el rival.'
+      );
 
       if (!res.success) {
         setError(res.error || 'Error impugnando resultado');
@@ -212,7 +216,7 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
                 onClick={handleConfirm}
                 className="flex-1 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-xs transition shadow"
               >
-                {loading ? 'Confirmando...' : '✅ Confirmar Marcador'}
+                {loading ? 'Confirmando...' : '✓ Confirmar Resultado'}
               </button>
               <button
                 type="button"
@@ -220,7 +224,7 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
                 onClick={() => setShowDisputeModal(true)}
                 className="px-4 py-2.5 rounded-xl bg-red-600/20 text-red-300 hover:bg-red-600/30 border border-red-500/30 font-bold text-xs transition"
               >
-                ⚠️ Impugnar
+                ✕ Disputar Marcador
               </button>
             </div>
           </div>

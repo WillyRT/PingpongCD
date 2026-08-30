@@ -122,8 +122,21 @@ export function MatchCard({ match, currentUserId, isAdmin = false }: MatchCardPr
       )}
 
       {/* Actions */}
-      <div className="pt-2 border-t border-[var(--border)] flex gap-2">
-        {match.status === 'pending' && isParticipant && (
+      <div className="pt-2 border-t border-[var(--border)] flex flex-wrap gap-2">
+        {/* Admin Override */}
+        {isAdmin && match.status !== 'confirmed' && (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={handleConfirm}
+            className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            <span>⚡</span>
+            <span>{loading ? 'Validando...' : 'Validar / Forzar Acta'}</span>
+          </button>
+        )}
+
+        {match.status === 'pending' && isParticipant && !isAdmin && (
           <Link
             href={`/player/report/${match.id}`}
             className="w-full py-2 rounded-lg gradient-primary text-white text-xs font-semibold text-center transition hover:scale-[1.01]"
@@ -132,7 +145,7 @@ export function MatchCard({ match, currentUserId, isAdmin = false }: MatchCardPr
           </Link>
         )}
 
-        {match.status === 'submitted' && isParticipant && !isReporter && (
+        {(match.status === 'submitted' || match.status === 'reported' || match.status === 'pending_verification') && isParticipant && !isReporter && !isAdmin && (
           <>
             <button
               type="button"
@@ -153,7 +166,7 @@ export function MatchCard({ match, currentUserId, isAdmin = false }: MatchCardPr
           </>
         )}
 
-        {match.status === 'submitted' && isReporter && (
+        {(match.status === 'submitted' || match.status === 'reported' || match.status === 'pending_verification') && isReporter && !isAdmin && (
           <div className="w-full py-1.5 text-center text-xs text-[var(--muted-foreground)]">
             Waiting for opponent confirmation...
           </div>

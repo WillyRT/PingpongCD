@@ -32,6 +32,7 @@ export type MatchStage = typeof MATCH_STAGES[number];
 export const MATCH_STATUSES = [
   'pending',
   'submitted',
+  'reported',
   'confirmed',
   'disputed',
   'scheduled',

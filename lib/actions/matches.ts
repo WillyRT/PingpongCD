@@ -259,7 +259,7 @@ async function finalizeAndConfirmMatch(
   await admin
     .from('matches')
     .update({
-      status: 'completed',
+      status: 'confirmed',
       score_player1: score1,
       score_player2: score2,
       winner_id: winnerId,
@@ -362,6 +362,18 @@ async function finalizeAndConfirmMatch(
     new_data: { status: 'completed', winner_id: winnerId, score_player1: score1, score_player2: score2 },
   });
 
+  // Revalidate tournament public page
+  if (match.tournament_id) {
+    const { data: tourney } = await admin
+      .from('tournaments')
+      .select('slug')
+      .eq('id', match.tournament_id)
+      .maybeSingle();
+    if (tourney?.slug) {
+      revalidatePath(`/t/${tourney.slug}`);
+    }
+  }
+
   revalidatePath('/player');
   revalidatePath('/me');
   revalidatePath('/');
@@ -379,3 +391,7 @@ export async function confirmMatchAction(matchId: string): Promise<ActionRespons
 export async function disputeMatchAction(matchId: string, notes?: string): Promise<ActionResponse> {
   return verifyMatchScoreAction({ matchId, action: 'dispute', disputeReason: notes });
 }
+
+/** Official Action Aliases for Dual-Check Verification */
+export const confirmMatchScoreAction = confirmMatchAction;
+export const disputeMatchScoreAction = disputeMatchAction;

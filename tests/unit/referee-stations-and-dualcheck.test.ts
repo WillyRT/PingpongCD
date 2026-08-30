@@ -38,6 +38,7 @@ describe('MÓDULO 2 & 4: Referee, Dual-Check & 4-Station Architecture Suite', ()
       const expectedStatuses = [
         'pending',
         'submitted',
+        'reported',
         'confirmed',
         'disputed',
         'scheduled',

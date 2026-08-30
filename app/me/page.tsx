@@ -6,6 +6,7 @@ import { calculateWinProbability } from '@/lib/engine/analytics';
 import { calculateStandings } from '@/lib/engine/standings';
 import { getCategoryLabel } from '@/lib/engine/categories';
 import { PlayerActiveMatchCard } from '@/components/PlayerActiveMatchCard';
+import { PendingMatchValidations, type PendingValidationMatch } from '@/components/PendingMatchValidations';
 import { PlayerProfileView, type MatchDetailItem } from '@/components/PlayerProfileView';
 import type { AgeCategory } from '@/lib/types/domain';
 
@@ -257,6 +258,43 @@ export default async function PlayerPortalPage() {
       }
     : null;
 
+  // Filter matches awaiting confirmation from the current user (Dual-check pending validations)
+  const pendingValidations: PendingValidationMatch[] = (allMatches || [])
+    .filter((m: any) => {
+      const reporterId = m.reported_by_id || m.reported_by;
+      const isReporter = reporterId === profile.id;
+      const isPendingStatus =
+        m.status === 'reported' ||
+        m.status === 'submitted' ||
+        m.status === 'pending_verification';
+      return isPendingStatus && !isReporter;
+    })
+    .map((m: any) => {
+      const isP1 = m.player1_id === profile.id;
+      const reporterId = m.reported_by_id || m.reported_by;
+      const reporterName =
+        reporterId === m.player1_id
+          ? m.player1?.nickname || m.player1?.name || 'Jugador 1'
+          : m.player2?.nickname || m.player2?.name || 'Jugador 2';
+
+      return {
+        id: m.id,
+        tournamentId: m.tournament_id,
+        tournamentName: m.tournaments?.name ?? 'Torneo Oficial',
+        tournamentSlug: m.tournaments?.slug,
+        stage: m.stage,
+        player1Id: m.player1_id,
+        player2Id: m.player2_id,
+        player1Name: m.player1?.nickname || m.player1?.name || 'Jugador 1',
+        player2Name: m.player2?.nickname || m.player2?.name || 'Jugador 2',
+        scorePlayer1: m.score_player1 ?? 0,
+        scorePlayer2: m.score_player2 ?? 0,
+        reportedBy: reporterId || '',
+        reportedByName: reporterName,
+        status: m.status,
+      };
+    });
+
   const isStaff =
     profile.role === 'admin' ||
     profile.role === 'super_admin' ||
@@ -266,6 +304,11 @@ export default async function PlayerPortalPage() {
   return (
     <main className="min-h-screen pb-24 bg-[var(--background)] text-[var(--foreground)] px-4 py-6 md:py-10">
       <div className="max-w-5xl mx-auto space-y-6 animate-slide-up">
+        {/* Priority Banner: Pending Match Validations (Dual-Check) */}
+        {pendingValidations.length > 0 && (
+          <PendingMatchValidations matches={pendingValidations} currentUserId={profile.id} />
+        )}
+
         {/* Staff Quick Access Banner */}
         {isStaff && (
           <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">

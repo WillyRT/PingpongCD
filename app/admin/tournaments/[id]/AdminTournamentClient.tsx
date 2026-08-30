@@ -15,6 +15,7 @@ import { QRCodeView } from '@/components/tournament/QRCodeView';
 import { StandingsTable } from '@/components/standings/StandingsTable';
 import { BracketView } from '@/components/bracket/BracketView';
 import { MatchCard } from '@/components/matches/MatchCard';
+import { AdminMatchCard } from '@/components/AdminMatchCard';
 import {
   openRegistrationAction,
   generateGroupsAndScheduleAction,
@@ -802,11 +803,10 @@ export function AdminTournamentClient({
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredMatches.map((m) => (
-                  <MatchCard
+                  <AdminMatchCard
                     key={m.id}
                     match={m as any}
                     currentUserId={currentUserId}
-                    isAdmin={true}
                   />
                 ))}
               </div>
