@@ -6,6 +6,7 @@ import { calculateWinProbability } from '@/lib/engine/analytics';
 import { calculateStandings } from '@/lib/engine/standings';
 import { getCategoryLabel } from '@/lib/engine/categories';
 import { PlayerActiveMatchCard } from '@/components/PlayerActiveMatchCard';
+import { PlayerProfileView, type MatchDetailItem } from '@/components/PlayerProfileView';
 import type { AgeCategory } from '@/lib/types/domain';
 
 export default async function PlayerPortalPage() {
@@ -90,10 +91,36 @@ export default async function PlayerPortalPage() {
       *,
       player1:player1_id (id, name, nickname, rating, category),
       player2:player2_id (id, name, nickname, rating, category),
-      tournaments:tournament_id (id, name, slug, status)
+      tournaments:tournament_id (id, name, slug, status),
+      tournament_groups:group_id (id, group_code)
     `)
     .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
     .order('created_at', { ascending: false });
+
+  // Fetch rating snapshots
+  const { data: rawSnapshots } = await admin
+    .from('rating_snapshots')
+    .select('*')
+    .eq('player_id', profile.id)
+    .order('created_at', { ascending: true });
+
+  const formattedMatches: MatchDetailItem[] = (allMatches || []).map((m: any) => ({
+    id: m.id,
+    tournament_id: m.tournament_id,
+    tournament_name: m.tournaments?.name ?? 'Torneo Oficial',
+    tournament_slug: m.tournaments?.slug,
+    stage: m.stage,
+    group_code: m.tournament_groups?.group_code ?? null,
+    player1_id: m.player1_id,
+    player2_id: m.player2_id,
+    score_player1: m.score_player1,
+    score_player2: m.score_player2,
+    winner_id: m.winner_id,
+    is_upset: m.is_upset,
+    created_at: m.created_at,
+    player1: m.player1,
+    player2: m.player2,
+  }));
 
   // Calculate stats: Wins, Losses, Streaks, Upsets
   let wins = 0;
@@ -230,100 +257,33 @@ export default async function PlayerPortalPage() {
       }
     : null;
 
+  const isStaff =
+    profile.role === 'admin' ||
+    profile.role === 'super_admin' ||
+    profile.role === 'referee' ||
+    user?.email === 'guillermoriveraterriza@gmail.com';
+
   return (
-    <main className="min-h-screen pb-24 bg-[var(--background)] text-[var(--foreground)]">
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-6 animate-slide-up">
-        {/* 1. Main Profile Card */}
-        <div className="p-6 rounded-2xl bg-[var(--card)] border border-[var(--border)] shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center text-white text-2xl font-black shadow-lg">
-                {displayName.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-extrabold tracking-tight">{displayName}</h1>
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                    {profile.role === 'admin' || profile.role === 'super_admin' ? 'Admin' : 'Jugador Oficial'}
-                  </span>
-                </div>
-                <div className="text-xs text-[var(--muted-foreground)] mt-0.5 flex items-center gap-2">
-                  <span>{profile.email || 'Sin email registrado'}</span>
-                  <span>•</span>
-                  <span className="font-semibold text-white">
-                    {profile.category ? getCategoryLabel(profile.category as AgeCategory) : 'Categoría General'}
-                  </span>
-                  <span>•</span>
-                  <a href="/auth/signout" className="text-red-400/80 hover:text-red-400 hover:underline transition">
-                    Cerrar sesión
-                  </a>
-                </div>
-              </div>
+    <main className="min-h-screen pb-24 bg-[var(--background)] text-[var(--foreground)] px-4 py-6 md:py-10">
+      <div className="max-w-5xl mx-auto space-y-6 animate-slide-up">
+        {/* Staff Quick Access Banner */}
+        {isStaff && (
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
+              <span>🛡️</span>
+              <span>Acceso de Administración / Arbitraje Habilitado</span>
             </div>
-
-            {/* ELO Rating Badge */}
-            <div className="text-left sm:text-right bg-[var(--secondary)]/60 sm:bg-transparent p-3 sm:p-0 rounded-xl sm:rounded-none w-full sm:w-auto">
-              <div className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">
-                Rating Glicko-2
-              </div>
-              <div className="text-3xl font-black font-mono text-[var(--primary)] mt-0.5">
-                {playerRating}
-              </div>
-              <div className="text-[11px] text-[var(--muted-foreground)] font-medium">
-                Incertidumbre: ±{playerRd} RD
-              </div>
-            </div>
+            <Link
+              href="/admin"
+              className="px-3 py-1.5 rounded-lg bg-amber-500 text-black text-xs font-black hover:bg-amber-400 transition"
+            >
+              Ir a Panel Admin →
+            </Link>
           </div>
+        )}
 
-          {/* Key Stats Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-[var(--border)] text-center">
-            <div className="p-2.5 rounded-xl bg-[var(--secondary)]/40">
-              <div className="text-xl font-black text-white">{totalPlayed}</div>
-              <div className="text-[11px] text-[var(--muted-foreground)] font-semibold mt-0.5 uppercase tracking-wide">Partidos</div>
-            </div>
-            <div className="p-2.5 rounded-xl bg-[var(--secondary)]/40">
-              <div className="text-xl font-black text-green-400">{wins} - {losses}</div>
-              <div className="text-[11px] text-[var(--muted-foreground)] font-semibold mt-0.5 uppercase tracking-wide">Victorias - Derrotas</div>
-            </div>
-            <div className="p-2.5 rounded-xl bg-[var(--secondary)]/40">
-              <div className="text-xl font-black text-amber-400">{winRate}%</div>
-              <div className="text-[11px] text-[var(--muted-foreground)] font-semibold mt-0.5 uppercase tracking-wide">Efectividad</div>
-            </div>
-            <div className="p-2.5 rounded-xl bg-[var(--secondary)]/40">
-              <div className="text-xl font-black text-purple-400">
-                {currentStreak > 0 ? `🔥 ${currentStreak}` : '0'}
-              </div>
-              <div className="text-[11px] text-[var(--muted-foreground)] font-semibold mt-0.5 uppercase tracking-wide">Racha Actual</div>
-            </div>
-          </div>
-
-          {/* Badges / Insignias */}
-          <div className="flex flex-wrap items-center gap-2 mt-4">
-            {upsetWins > 0 && (
-              <div className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold shadow-sm">
-                <span>⚡</span>
-                <span>Sorpresa de la jornada ({upsetWins})</span>
-              </div>
-            )}
-            {currentStreak >= 3 && (
-              <div className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-orange-500/15 border border-orange-500/30 text-orange-300 text-xs font-bold shadow-sm">
-                <span>🔥</span>
-                <span>En Racha Ganadora</span>
-              </div>
-            )}
-            {totalPlayed >= 5 && (
-              <div className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs font-bold shadow-sm">
-                <span>🎖️</span>
-                <span>Veterano del Circuito</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 2. Active Tournament & Next Match Hero */}
-        {activeParticipation && (
+        {/* Active Match Card / Dual-check Interactive Component */}
+        {nextMatchData && (
           <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-950/40 via-[var(--card)] to-purple-950/30 border border-blue-500/30 shadow-xl space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -332,132 +292,23 @@ export default async function PlayerPortalPage() {
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500" />
                 </span>
                 <span className="text-xs font-extrabold uppercase tracking-wider text-blue-400">
-                  Torneo en Curso: {(activeParticipation.tournaments as any)?.name}
+                  Partido Pendiente en Curso: {nextMatchData.tournamentName}
                 </span>
               </div>
-
-              <Link
-                href={`/t/${(activeParticipation.tournaments as any)?.slug}`}
-                className="text-xs font-bold text-[var(--primary)] hover:underline flex items-center gap-1"
-              >
-                Ver Cuadro Completo →
-              </Link>
             </div>
 
-            {/* Group Position & Progress */}
-            {groupPosition !== null && (
-              <div className="p-3 rounded-xl bg-[var(--secondary)]/60 flex items-center justify-between text-xs">
-                <span className="text-[var(--muted-foreground)]">
-                  Grupo {(activeParticipation.tournament_groups as any)?.group_letter ?? 'A'}
-                </span>
-                <span className="font-extrabold text-white">
-                  Posición actual en la tabla: <strong className="text-amber-400">#{groupPosition}</strong> de {totalInGroup ?? 4}
-                </span>
-              </div>
-            )}
-
-            {/* Next Match Card / Dual-check Interactive Component */}
-            {nextMatchData ? (
-              <PlayerActiveMatchCard match={nextMatchData} currentUserId={profile.id} />
-            ) : (
-              <div className="p-5 rounded-xl bg-[var(--card)] border border-[var(--border)] text-center text-xs text-[var(--muted-foreground)]">
-                ✓ No tienes partidos pendientes en este momento.
-              </div>
-            )}
+            <PlayerActiveMatchCard match={nextMatchData} currentUserId={profile.id} />
           </div>
         )}
 
-        {/* 3. Recent Matches History */}
-        <div className="p-6 rounded-2xl bg-[var(--card)] border border-[var(--border)] space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-extrabold text-sm uppercase tracking-wider text-[var(--muted-foreground)]">
-              Historial de Partidos ({confirmedMatches.length})
-            </h2>
-          </div>
-
-          {confirmedMatches.length === 0 ? (
-            <div className="text-center py-8 text-sm text-[var(--muted-foreground)]">
-              Aún no has disputado ningún partido oficial.
-            </div>
-          ) : (
-            <div className="divide-y divide-[var(--border)]">
-              {confirmedMatches.map((m) => {
-                const isP1 = m.player1_id === profile.id;
-                const myScore = isP1 ? m.score_player1 : m.score_player2;
-                const oppScore = isP1 ? m.score_player2 : m.score_player1;
-                const opp = isP1 ? (m.player2 as any) : (m.player1 as any);
-                const won = m.winner_id === profile.id;
-
-                return (
-                  <div key={m.id} className="py-3.5 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${
-                        won ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                      }`}>
-                        {won ? 'V' : 'D'}
-                      </span>
-                      <div>
-                        <div className="font-bold text-sm text-white">
-                          vs {opp?.nickname || opp?.name || 'Rival'}
-                        </div>
-                        <div className="text-xs text-[var(--muted-foreground)] capitalize">
-                          {(m.tournaments as any)?.name ?? 'Torneo'} • Fase {m.stage}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <div className="font-mono font-extrabold text-base">
-                        <span className={won ? 'text-green-400' : 'text-white'}>{myScore}</span>
-                        <span className="text-[var(--muted-foreground)] mx-1">-</span>
-                        <span className={!won ? 'text-red-400' : 'text-[var(--muted-foreground)]'}>{oppScore}</span>
-                      </div>
-                      {m.is_upset && won && (
-                        <span className="text-[10px] text-amber-400 font-bold">⚡ Sorpresa</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* 4. Tournaments History */}
-        <div className="p-6 rounded-2xl bg-[var(--card)] border border-[var(--border)] space-y-4">
-          <h2 className="font-extrabold text-sm uppercase tracking-wider text-[var(--muted-foreground)]">
-            Torneos Inscritos ({participations?.length ?? 0})
-          </h2>
-
-          {(!participations || participations.length === 0) ? (
-            <div className="text-center py-8 text-sm text-[var(--muted-foreground)]">
-              No estás inscrito en ningún torneo actualmente.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {participations.map((p: any) => {
-                const t = p.tournaments;
-                return (
-                  <Link
-                    key={p.tournament_id}
-                    href={`/t/${t?.slug}`}
-                    className="p-4 rounded-xl bg-[var(--secondary)]/50 border border-[var(--border)] hover:border-[var(--primary)] transition flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="font-bold text-sm text-white">{t?.name}</div>
-                      <div className="text-xs text-[var(--muted-foreground)] capitalize mt-1">
-                        Estado: {String(t?.status ?? '').replace('_', ' ')}
-                      </div>
-                    </div>
-                    <div className="mt-3 text-[11px] font-semibold text-[var(--primary)] flex items-center gap-1">
-                      Ver Torneo →
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        {/* Unified Rich Player Profile View */}
+        <PlayerProfileView
+          profile={profile}
+          matches={formattedMatches}
+          snapshots={rawSnapshots ?? []}
+          participations={participations ?? []}
+          isOwnProfile={true}
+        />
       </div>
     </main>
   );

@@ -1132,7 +1132,7 @@ async function runMasterSeed() {
         total_players: grpPlayersSet.size,
       }, { onConflict: 'id' });
 
-      await supabase.from('tournament_groups').upsert({
+      const { error: tgErr } = await supabase.from('tournament_groups').upsert({
         id: grpId,
         tournament_id: tourneyId,
         group_code: grpCode,
@@ -1140,6 +1140,7 @@ async function runMasterSeed() {
         status: 'completed',
         created_at: new Date(t.date).toISOString(),
       }, { onConflict: 'id' });
+      if (tgErr) console.error('Error inserting tournament_groups:', tgErr.message);
 
       for (let mIdx = 0; mIdx < matchesList.length; mIdx++) {
         const [winnerName, loserName, scoreW, scoreL] = matchesList[mIdx];
@@ -1224,16 +1225,21 @@ async function runMasterSeed() {
     const tourneyId = tournament.id;
     const isSub = tournament.name.toLowerCase().includes('sub');
     const pSet = new Set();
+    const playerGroupMap = new Map();
     for (const m of matches) {
       pSet.add(m.player1_id);
       pSet.add(m.player2_id);
+      if (m.group_id) {
+        if (!playerGroupMap.has(m.player1_id)) playerGroupMap.set(m.player1_id, m.group_id);
+        if (!playerGroupMap.has(m.player2_id)) playerGroupMap.set(m.player2_id, m.group_id);
+      }
     }
     const partRows = Array.from(pSet).map((pId) => ({
       tournament_id: tourneyId,
       user_id: pId,
       category: isSub ? 'sub14' : 'plus14',
       declared_level: 3,
-      group_id: null,
+      group_id: playerGroupMap.get(pId) || null,
       seed_number: null,
     }));
     if (partRows.length > 0) {

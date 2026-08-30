@@ -155,7 +155,14 @@ export default async function HistoricalLeaderboardPage() {
                         {idx + 1}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-semibold">{entry.name}</td>
+                    <td className="px-4 py-3 font-semibold">
+                      <Link
+                        href={`/player/${entry.id}`}
+                        className="hover:text-[var(--primary)] hover:underline transition font-bold text-white"
+                      >
+                        {entry.name}
+                      </Link>
+                    </td>
                     <td className="px-3 py-3 text-center font-mono font-extrabold text-[var(--primary)]">
                       {entry.rating.toFixed(0)}
                     </td>

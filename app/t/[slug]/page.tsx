@@ -1,6 +1,12 @@
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
+import { calculateStandings } from '@/lib/engine/standings';
+import { getPlayerSession } from '@/lib/auth/player-session';
+import {
+  TournamentViewClient,
+  type GroupData,
+  type KnockoutMatchItem,
+} from './TournamentViewClient';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -12,11 +18,12 @@ export default async function TournamentLanding({ params }: PageProps) {
   const { slug } = await params;
   const decodedParam = decodeURIComponent(slug).trim();
   const supabase = await createClient();
+  const admin = createAdminClient();
 
   let tournament = null;
 
   if (UUID_REGEX.test(decodedParam)) {
-    const { data } = await supabase
+    const { data } = await admin
       .from('tournaments')
       .select('*')
       .eq('id', decodedParam)
@@ -25,7 +32,7 @@ export default async function TournamentLanding({ params }: PageProps) {
   }
 
   if (!tournament) {
-    const { data: bySlug } = await supabase
+    const { data: bySlug } = await admin
       .from('tournaments')
       .select('*')
       .eq('slug', decodedParam)
@@ -40,7 +47,7 @@ export default async function TournamentLanding({ params }: PageProps) {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
 
-      const { data: byNorm } = await supabase
+      const { data: byNorm } = await admin
         .from('tournaments')
         .select('*')
         .eq('slug', normalizedSlug)
@@ -51,118 +58,178 @@ export default async function TournamentLanding({ params }: PageProps) {
 
   if (!tournament) notFound();
 
-  // Count participants
-  const { count: participantCount } = await supabase
+  // Fetch groups
+  const { data: rawGroups } = await admin
+    .from('tournament_groups')
+    .select('*')
+    .eq('tournament_id', tournament.id)
+    .order('group_code', { ascending: true });
+
+  // Fetch participants with profile
+  const { data: participants } = await admin
     .from('tournament_participants')
-    .select('*', { count: 'exact', head: true })
+    .select('*, profiles:user_id (*)')
     .eq('tournament_id', tournament.id);
 
-  // Check if current user is already registered
+  // Fetch matches
+  const { data: rawMatches } = await admin
+    .from('matches')
+    .select(`
+      *,
+      player1:player1_id (id, name, nickname, rating, category),
+      player2:player2_id (id, name, nickname, rating, category)
+    `)
+    .eq('tournament_id', tournament.id)
+    .order('created_at', { ascending: true });
+
+  // Fetch rating snapshots for this tournament
+  const { data: snapshots } = await admin
+    .from('rating_snapshots')
+    .select('*')
+    .eq('historical_tournament_id', tournament.id);
+
+  // User session check
   const { data: { user } } = await supabase.auth.getUser();
-  let isRegistered = false;
-  if (user) {
-    const { data: participation } = await supabase
-      .from('tournament_participants')
-      .select('user_id')
-      .eq('tournament_id', tournament.id)
-      .eq('user_id', user.id)
-      .single();
-    isRegistered = !!participation;
+  const playerSession = await getPlayerSession();
+
+  const userIdsToCheck = new Set<string>();
+  if (user?.id) userIdsToCheck.add(user.id);
+  if (playerSession?.playerId) userIdsToCheck.add(playerSession.playerId);
+
+  const isRegistered = (participants || []).some(
+    (p) => userIdsToCheck.has(p.user_id) || (user?.email && p.profiles?.email === user.email)
+  );
+
+  // Map of profiles by ID
+  const profilesMap = new Map<string, any>();
+  for (const p of participants || []) {
+    if (p.profiles) {
+      profilesMap.set(p.user_id, p.profiles);
+    }
+  }
+  for (const m of rawMatches || []) {
+    if (m.player1) profilesMap.set(m.player1_id, m.player1);
+    if (m.player2) profilesMap.set(m.player2_id, m.player2);
   }
 
-  const statusInfo: Record<string, { label: string; color: string; icon: string }> = {
-    draft: { label: 'Coming Soon', color: 'text-gray-400', icon: '📋' },
-    registration: { label: 'Registration Open', color: 'text-green-400', icon: '✅' },
-    group_stage: { label: 'Group Stage', color: 'text-amber-400', icon: '⚔️' },
-    bracket_stage: { label: 'Knockout Stage', color: 'text-purple-400', icon: '🏆' },
-    finished: { label: 'Completed', color: 'text-blue-400', icon: '🎉' },
-  };
+  // Calculate Standings for Each Group
+  const groupsData: GroupData[] = [];
+  const groupsList = rawGroups || [];
 
-  const status = statusInfo[tournament.status] ?? statusInfo.draft!;
+  for (const g of groupsList) {
+    const groupMatches = (rawMatches || []).filter(
+      (m) => m.group_id === g.id && m.stage === 'group'
+    );
+
+    // Identify players in this group
+    const playerIdsSet = new Set<string>();
+    for (const p of participants || []) {
+      if (p.group_id === g.id) playerIdsSet.add(p.user_id);
+    }
+    for (const m of groupMatches) {
+      if (m.player1_id) playerIdsSet.add(m.player1_id);
+      if (m.player2_id) playerIdsSet.add(m.player2_id);
+    }
+
+    const playerIds = Array.from(playerIdsSet);
+
+    // Confirmed matches formatted for standing calculation
+    const confirmedMatches = groupMatches
+      .filter((m) => m.score_player1 !== null && m.score_player2 !== null)
+      .map((m) => ({
+        player1Id: m.player1_id,
+        player2Id: m.player2_id,
+        score1: m.score_player1 ?? 0,
+        score2: m.score_player2 ?? 0,
+        winnerId: m.winner_id ?? (m.score_player1! > m.score_player2! ? m.player1_id : m.player2_id),
+      }));
+
+    const seedsMap = new Map<string, number>();
+    const initialRatings = new Map<string, number>();
+
+    playerIds.forEach((pid, idx) => {
+      seedsMap.set(pid, idx + 1);
+      const sn = (snapshots || []).find((s) => s.player_id === pid);
+      const prof = profilesMap.get(pid);
+      initialRatings.set(pid, sn?.rating_before ?? prof?.rating ?? 1500);
+    });
+
+    const calculated = calculateStandings(
+      playerIds,
+      confirmedMatches,
+      seedsMap,
+      initialRatings
+    );
+
+    const standings = calculated.map((s) => {
+      const prof = profilesMap.get(s.playerId);
+      const sn = (snapshots || []).find((snap) => snap.player_id === s.playerId);
+      return {
+        ...s,
+        playerName: prof?.nickname || prof?.name || 'Jugador',
+        playerCategory: prof?.category || 'plus14',
+        finalRating: sn ? Math.round(sn.rating_after) : Math.round(prof?.rating ?? 1500),
+      };
+    });
+
+    const groupMatchItems = groupMatches.map((m) => {
+      const p1 = profilesMap.get(m.player1_id);
+      const p2 = profilesMap.get(m.player2_id);
+      return {
+        id: m.id,
+        group_id: m.group_id,
+        stage: m.stage,
+        player1_id: m.player1_id,
+        player2_id: m.player2_id,
+        score_player1: m.score_player1,
+        score_player2: m.score_player2,
+        winner_id: m.winner_id,
+        status: m.status,
+        player1Name: p1?.nickname || p1?.name || 'Jugador 1',
+        player2Name: p2?.nickname || p2?.name || 'Jugador 2',
+      };
+    });
+
+    groupsData.push({
+      id: g.id,
+      group_code: g.group_code,
+      category: g.category,
+      standings,
+      matches: groupMatchItems,
+    });
+  }
+
+  // Knockout Matches
+  const knockoutMatches: KnockoutMatchItem[] = (rawMatches || [])
+    .filter((m) => m.stage !== 'group')
+    .map((m) => {
+      const p1 = profilesMap.get(m.player1_id);
+      const p2 = profilesMap.get(m.player2_id);
+      return {
+        id: m.id,
+        stage: m.stage,
+        player1_id: m.player1_id,
+        player2_id: m.player2_id,
+        score_player1: m.score_player1,
+        score_player2: m.score_player2,
+        winner_id: m.winner_id,
+        status: m.status,
+        player1Name: p1?.nickname || p1?.name || 'Jugador 1',
+        player2Name: p2?.nickname || p2?.name || 'Jugador 2',
+      };
+    });
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
-      <div className="max-w-md w-full text-center animate-slide-up">
-        {/* Tournament Icon */}
-        <div className="text-6xl mb-6">{status.icon}</div>
-
-        {/* Tournament Name */}
-        <h1 className="text-3xl font-extrabold mb-2">{tournament.name}</h1>
-
-        {/* Status Badge */}
-        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--secondary)] ${status.color} text-sm font-medium mb-6`}>
-          <span className="w-2 h-2 rounded-full bg-current" />
-          {status.label}
-        </div>
-
-        {/* Info */}
-        <div className="p-6 rounded-xl bg-[var(--card)] border border-[var(--border)] mb-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-2xl font-bold">{participantCount ?? 0}</div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">Players</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold">🏓</div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">Table Tennis</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Actions */}
-        {(tournament.status === 'registration' || tournament.status === 'draft') && !isRegistered && (
-          <div className="space-y-3">
-            <Link
-              href={`/join/${tournament.id}`}
-              className="block w-full px-6 py-4 rounded-xl gradient-primary text-white font-semibold text-lg text-center transition-transform hover:scale-105 active:scale-95 shadow-lg"
-            >
-              🏓 Inscribirse al Torneo
-            </Link>
-            {!user && (
-              <Link
-                href={`/login?redirectTo=/t/${tournament.slug}`}
-                className="block text-xs text-[var(--muted-foreground)] hover:text-white text-center underline"
-              >
-                ¿Ya tienes cuenta? Inicia sesión aquí
-              </Link>
-            )}
-          </div>
-        )}
-
-        {isRegistered && (
-          <div className="p-4 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/20">
-            <p className="text-[var(--accent)] font-medium">✓ You're registered!</p>
-            <Link
-              href="/player"
-              className="inline-block mt-3 text-sm text-[var(--primary)] hover:underline"
-            >
-              Go to Dashboard →
-            </Link>
-          </div>
-        )}
-
-        {tournament.status === 'draft' && (
-          <p className="text-[var(--muted-foreground)]">
-            Registration hasn't opened yet. Check back soon!
-          </p>
-        )}
-
-        {(tournament.status === 'group_stage' || tournament.status === 'bracket_stage') && (
-          <div className="space-y-3">
-            <p className="text-[var(--muted-foreground)]">
-              Tournament is in progress.
-            </p>
-            {user && isRegistered && (
-              <Link
-                href="/player"
-                className="inline-block px-6 py-3 rounded-xl gradient-primary text-white font-semibold"
-              >
-                Go to Dashboard
-              </Link>
-            )}
-          </div>
-        )}
-      </div>
+    <main className="min-h-screen bg-[var(--background)] px-4 py-8 md:py-12">
+      <TournamentViewClient
+        tournament={tournament}
+        groups={groupsData}
+        knockoutMatches={knockoutMatches}
+        totalPlayers={participants?.length || profilesMap.size}
+        totalMatches={rawMatches?.length || 0}
+        isRegistered={isRegistered}
+        userLoggedIn={Boolean(user || playerSession)}
+      />
     </main>
   );
 }
