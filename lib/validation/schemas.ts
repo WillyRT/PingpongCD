@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const createTournamentSchema = z.object({
   name: z.string().min(3, 'Tournament name must be at least 3 characters').max(100),
   hiddenStandings: z.boolean().default(true),
+  tournamentType: z.enum(['official', 'test']).default('official'),
 });
 
 export const reportScoreSchema = z.object({

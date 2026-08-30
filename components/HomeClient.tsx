@@ -11,11 +11,23 @@ interface HomeClientProps {
 
 export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientProps) {
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'finished'>('all');
 
-  const filteredTournaments = initialTournaments.filter((t) =>
-    t.name.toLowerCase().includes(search.toLowerCase()) ||
-    t.slug.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredTournaments = initialTournaments.filter((t) => {
+    const matchesSearch =
+      t.name.toLowerCase().includes(search.toLowerCase()) ||
+      t.slug.toLowerCase().includes(search.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    if (statusFilter === 'active') {
+      return t.status !== 'finished';
+    }
+    if (statusFilter === 'finished') {
+      return t.status === 'finished';
+    }
+    return true;
+  });
 
   const statusLabels: Record<string, { label: string; color: string }> = {
     draft: { label: 'Borrador', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
@@ -134,15 +146,63 @@ export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientPr
             </p>
           </div>
 
-          <div className="w-full sm:w-64">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="🔍 Filtrar torneos..."
-              className="w-full px-3.5 py-2 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-xs focus:outline-none focus:border-[var(--primary)]"
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            {/* Filter buttons */}
+            <div className="flex items-center rounded-xl bg-[var(--secondary)] p-1 border border-[var(--border)] text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                className={`px-3 py-1.5 rounded-lg transition ${
+                  statusFilter === 'all' ? 'bg-[var(--primary)] text-white shadow' : 'text-[var(--muted-foreground)] hover:text-white'
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('active')}
+                className={`px-3 py-1.5 rounded-lg transition ${
+                  statusFilter === 'active' ? 'bg-[var(--primary)] text-white shadow' : 'text-[var(--muted-foreground)] hover:text-white'
+                }`}
+              >
+                En Curso
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('finished')}
+                className={`px-3 py-1.5 rounded-lg transition ${
+                  statusFilter === 'finished' ? 'bg-[var(--primary)] text-white shadow' : 'text-[var(--muted-foreground)] hover:text-white'
+                }`}
+              >
+                Finalizados
+              </button>
+            </div>
+
+            <div className="w-full sm:w-48">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="🔍 Buscar..."
+                className="w-full px-3.5 py-1.5 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-xs focus:outline-none focus:border-[var(--primary)]"
+              />
+            </div>
           </div>
+        </div>
+
+        {/* Historical Archive Banner */}
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs text-amber-300">
+            <span>📜</span>
+            <span>¿Buscas las clasificaciones y partidos de 2023, 2024, 2025 o 2026?</span>
+          </div>
+          <Link
+            href="/historico"
+            className="text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline shrink-0 flex items-center gap-1"
+          >
+            <span>Ver Archivo Histórico Completo</span>
+            <span>→</span>
+          </Link>
         </div>
 
         {filteredTournaments.length === 0 ? (
@@ -154,6 +214,7 @@ export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientPr
             {filteredTournaments.map((t) => {
               const st = statusLabels[t.status] || { label: t.status, color: 'bg-gray-500/20 text-gray-300 border-gray-500/30' };
               const isOpen = t.status === 'registration' || t.status === 'draft';
+              const isTest = t.name.toLowerCase().includes('prueba') || t.slug.toLowerCase().includes('test');
 
               return (
                 <div
@@ -162,9 +223,16 @@ export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientPr
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${st.color}`}>
-                        {st.label}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${st.color}`}>
+                          {st.label}
+                        </span>
+                        {isTest && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-purple-500/20 text-purple-300 border-purple-500/30">
+                            🧪 Pruebas
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[10px] text-[var(--muted-foreground)] font-mono">
                         {new Date(t.created_at).toLocaleDateString('es-ES')}
                       </span>

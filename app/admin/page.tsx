@@ -8,25 +8,25 @@ const SUPER_ADMIN_EMAIL = 'guillermoriveraterriza@gmail.com';
 export default async function AdminDashboard() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) redirect('/login?redirect=/admin');
 
-  if (!user) redirect('/login?redirectTo=/admin');
+  const cleanEmail = user.email.toLowerCase().trim();
+  const isSuperAdmin = cleanEmail === SUPER_ADMIN_EMAIL;
 
   // Check admin role
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, email')
-    .eq('id', user.id)
-    .single();
+    .select('role, email, admin_status')
+    .eq('email', cleanEmail)
+    .maybeSingle();
 
-  const isSuperAdmin =
+  const isAdmin =
+    isSuperAdmin ||
     profile?.role === 'super_admin' ||
-    user.email?.toLowerCase() === SUPER_ADMIN_EMAIL ||
-    profile?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
-
-  const isAdmin = isSuperAdmin || profile?.role === 'admin';
+    (profile?.role === 'admin' && profile?.admin_status === 'approved');
 
   if (!isAdmin) {
-    redirect('/player');
+    redirect('/?error=unauthorized');
   }
 
   // Fetch tournaments

@@ -5,21 +5,51 @@ import { verifyPlayerSessionToken } from '../auth/player-session';
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  const pathname = request.nextUrl.pathname;
+
+  // 1. Always allow public routes without any circular redirections
+  const isPublicRoute =
+    pathname === '/' ||
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/ranking') ||
+    pathname.startsWith('/leaderboard') ||
+    pathname.startsWith('/historico') ||
+    pathname.startsWith('/historical') ||
+    pathname.startsWith('/t/') ||
+    pathname.startsWith('/join/') ||
+    (pathname.startsWith('/player/') && !pathname.startsWith('/player/report'));
+
+  if (isPublicRoute && !pathname.startsWith('/admin')) {
+    // If the request is already on /login or another public route, never redirect
+    if (pathname.startsWith('/login')) {
+      return supabaseResponse;
+    }
+  }
+
+  const isProtectedAdmin = pathname.startsWith('/admin');
+  const isProtectedPlayer =
+    pathname === '/player' || pathname.startsWith('/player/report') || pathname.startsWith('/me');
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseKey =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     '';
 
-  const isProtectedPlayer =
-    request.nextUrl.pathname.startsWith('/player') || request.nextUrl.pathname.startsWith('/me');
-  const isProtectedAdmin = request.nextUrl.pathname.startsWith('/admin');
-
   if (!supabaseUrl || !supabaseKey) {
-    if (isProtectedPlayer || isProtectedAdmin) {
+    if (isProtectedAdmin && pathname !== '/login') {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
-      url.searchParams.set('redirectTo', request.nextUrl.pathname);
+      url.search = '';
+      url.searchParams.set('redirect', '/admin');
+      return NextResponse.redirect(url);
+    }
+    if (isProtectedPlayer && pathname !== '/login') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.search = '';
+      url.searchParams.set('redirect', pathname);
       return NextResponse.redirect(url);
     }
     return supabaseResponse;
@@ -53,24 +83,38 @@ export async function updateSession(request: NextRequest) {
     const verifiedPlayerSession = await verifyPlayerSessionToken(sessionToken);
 
     if (isProtectedAdmin && !user) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/login';
-      url.searchParams.set('redirectTo', request.nextUrl.pathname);
-      return NextResponse.redirect(url);
+      if (pathname !== '/login') {
+        const url = request.nextUrl.clone();
+        url.pathname = '/login';
+        url.search = '';
+        url.searchParams.set('redirect', '/admin');
+        return NextResponse.redirect(url);
+      }
     }
 
     if (isProtectedPlayer && !user && !verifiedPlayerSession) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/login';
-      url.searchParams.set('redirectTo', request.nextUrl.pathname);
-      return NextResponse.redirect(url);
+      if (pathname !== '/login') {
+        const url = request.nextUrl.clone();
+        url.pathname = '/login';
+        url.search = '';
+        url.searchParams.set('redirect', pathname);
+        return NextResponse.redirect(url);
+      }
     }
   } catch {
     // If auth verification fails in Edge Runtime, protect private routes or fail open on public routes
-    if (isProtectedAdmin || isProtectedPlayer) {
+    if (isProtectedAdmin && pathname !== '/login') {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
-      url.searchParams.set('redirectTo', request.nextUrl.pathname);
+      url.search = '';
+      url.searchParams.set('redirect', '/admin');
+      return NextResponse.redirect(url);
+    }
+    if (isProtectedPlayer && pathname !== '/login') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.search = '';
+      url.searchParams.set('redirect', pathname);
       return NextResponse.redirect(url);
     }
     return NextResponse.next({ request });
@@ -78,3 +122,4 @@ export async function updateSession(request: NextRequest) {
 
   return supabaseResponse;
 }
+

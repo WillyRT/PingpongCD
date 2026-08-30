@@ -61,17 +61,27 @@ export function NavbarClient({ user }: NavbarClientProps) {
               Inicio
             </Link>
             <Link
-              href="/admin"
+              href="/#torneos-circuito"
               className={`transition hover:text-white flex items-center gap-1.5 ${
-                pathname.startsWith('/admin') ? 'text-white' : 'text-[var(--muted-foreground)]'
+                pathname === '/' && typeof window !== 'undefined' && window.location.hash === '#torneos-circuito'
+                  ? 'text-white'
+                  : 'text-[var(--muted-foreground)]'
               }`}
             >
               🏆 Torneos
             </Link>
             <Link
+              href="/historico"
+              className={`transition hover:text-white flex items-center gap-1.5 ${
+                pathname.startsWith('/historico') ? 'text-white font-bold' : 'text-[var(--muted-foreground)]'
+              }`}
+            >
+              📜 Histórico
+            </Link>
+            <Link
               href="/leaderboard"
               className={`transition hover:text-white flex items-center gap-1.5 ${
-                pathname === '/leaderboard' ? 'text-white' : 'text-[var(--muted-foreground)]'
+                pathname === '/leaderboard' || pathname === '/ranking' ? 'text-white' : 'text-[var(--muted-foreground)]'
               }`}
             >
               📊 Ranking
@@ -79,7 +89,9 @@ export function NavbarClient({ user }: NavbarClientProps) {
             {isPrivileged && (
               <Link
                 href="/admin"
-                className="px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold hover:bg-purple-500/30 transition"
+                className={`px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold hover:bg-purple-500/30 transition ${
+                  pathname.startsWith('/admin') ? 'ring-1 ring-purple-400' : ''
+                }`}
               >
                 Panel {user?.role === 'referee' ? 'Árbitro' : 'Admin'}
               </Link>
@@ -132,38 +144,65 @@ export function NavbarClient({ user }: NavbarClientProps) {
       </header>
 
       {/* Fixed Bottom Mobile Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--background)]/95 backdrop-blur-lg border-t border-[var(--border)] py-2 px-6 flex items-center justify-around shadow-2xl">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--background)]/95 backdrop-blur-lg border-t border-[var(--border)] py-2 px-3 flex items-center justify-around shadow-2xl">
         <Link
           href="/"
-          className={`flex flex-col items-center gap-0.5 text-[11px] font-bold transition ${
+          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold transition ${
             pathname === '/' ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]'
           }`}
         >
-          <span className="text-lg">🏠</span>
+          <span className="text-base">🏠</span>
           <span>Inicio</span>
         </Link>
         <Link
-          href="/admin"
-          className={`flex flex-col items-center gap-0.5 text-[11px] font-bold transition ${
-            pathname.startsWith('/admin') || pathname.startsWith('/t/')
-              ? 'text-[var(--primary)]'
-              : 'text-[var(--muted-foreground)]'
+          href="/#torneos-circuito"
+          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold transition ${
+            pathname.startsWith('/t/') ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]'
           }`}
         >
-          <span className="text-lg">🏆</span>
+          <span className="text-base">🏆</span>
           <span>Torneos</span>
         </Link>
         <Link
+          href="/historico"
+          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold transition ${
+            pathname.startsWith('/historico') ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]'
+          }`}
+        >
+          <span className="text-base">📜</span>
+          <span>Histórico</span>
+        </Link>
+        <Link
+          href="/leaderboard"
+          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold transition ${
+            pathname === '/leaderboard' || pathname === '/ranking' ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]'
+          }`}
+        >
+          <span className="text-base">📊</span>
+          <span>Ranking</span>
+        </Link>
+        <Link
           href="/me"
-          className={`flex flex-col items-center gap-0.5 text-[11px] font-bold transition ${
+          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold transition ${
             pathname.startsWith('/me') || pathname.startsWith('/player')
               ? 'text-[var(--primary)]'
               : 'text-[var(--muted-foreground)]'
           }`}
         >
-          <span className="text-lg">👤</span>
-          <span>Mi Perfil</span>
+          <span className="text-base">👤</span>
+          <span>Perfil</span>
         </Link>
+        {isPrivileged && (
+          <Link
+            href="/admin"
+            className={`flex flex-col items-center gap-0.5 text-[10px] font-bold transition ${
+              pathname.startsWith('/admin') ? 'text-purple-400' : 'text-purple-400/70'
+            }`}
+          >
+            <span className="text-base">⚙️</span>
+            <span>Admin</span>
+          </Link>
+        )}
       </div>
     </>
   );

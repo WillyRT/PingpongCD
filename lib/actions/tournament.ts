@@ -27,6 +27,7 @@ export interface ActionResponse<T = unknown> {
 export async function createTournamentAction(formData: {
   name: string;
   hiddenStandings: boolean;
+  tournamentType?: 'official' | 'test';
 }): Promise<ActionResponse<{ id: string; slug: string }>> {
   try {
     const parsed = createTournamentSchema.parse(formData);
@@ -54,7 +55,12 @@ export async function createTournamentAction(formData: {
       return { success: false, error: 'Acceso denegado: Solo administradores autorizados pueden crear torneos.' };
     }
 
-    const cleanName = parsed.name
+    const isTest = parsed.tournamentType === 'test';
+    const finalName = isTest && !parsed.name.toLowerCase().includes('prueba')
+      ? `[Prueba] ${parsed.name}`
+      : parsed.name;
+
+    const cleanName = finalName
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -67,7 +73,7 @@ export async function createTournamentAction(formData: {
     const { data: tournament, error: tourneyError } = await admin
       .from('tournaments')
       .insert({
-        name: parsed.name,
+        name: finalName,
         slug,
         status: 'draft',
         hidden_standings: parsed.hiddenStandings,

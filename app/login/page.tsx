@@ -7,6 +7,7 @@ import LoginClient from './LoginClient';
 interface LoginPageProps {
   searchParams: Promise<{
     redirectTo?: string;
+    redirect?: string;
     next?: string;
     error?: string;
   }>;
@@ -14,7 +15,7 @@ interface LoginPageProps {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
-  const targetRedirect = params.next || params.redirectTo;
+  const targetRedirect = params.redirect || params.redirectTo || params.next;
 
   // Active Session Detection
   const supabase = await createClient();

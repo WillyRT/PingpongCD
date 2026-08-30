@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createTournamentAction } from '@/lib/actions/tournament';
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -139,5 +139,59 @@ describe('Robustez de Creación de Torneos (lib/actions/tournament.ts)', () => {
     expect(revalidatePath).toHaveBeenCalledWith('/');
     expect(revalidatePath).toHaveBeenCalledWith('/tournaments');
     expect(revalidatePath).toHaveBeenCalledWith('/admin');
+  });
+
+  it('tags tournament correctly when tournamentType is test', async () => {
+    const { createClient, createAdminClient } = await import('@/lib/supabase/server');
+    const mockAdminInsert = vi.fn().mockReturnValue({
+      select: () => ({
+        single: async () => ({
+          data: { id: 'tourney-test-456', slug: 'torneo-test-456' },
+          error: null,
+        }),
+      }),
+    });
+
+    (createClient as any).mockReturnValue({
+      auth: {
+        getUser: async () => ({
+          data: { user: { id: 'admin-id', email: 'guillermoriveraterriza@gmail.com' } },
+        }),
+      },
+    });
+
+    (createAdminClient as any).mockReturnValue({
+      from: (table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: () => ({
+              or: () => ({
+                maybeSingle: async () => ({
+                  data: { role: 'super_admin', admin_status: 'approved' },
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'tournaments') {
+          return { insert: mockAdminInsert };
+        }
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      },
+    });
+
+    const res = await createTournamentAction({
+      name: 'Exhibición Primavera',
+      hiddenStandings: true,
+      tournamentType: 'test',
+    });
+
+    expect(res.success).toBe(true);
+    expect(mockAdminInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: '[Prueba] Exhibición Primavera',
+        status: 'draft',
+      })
+    );
   });
 });
