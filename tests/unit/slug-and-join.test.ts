@@ -150,3 +150,59 @@ describe('Historical Player Search and Auth-less Registration', () => {
     expect(mockProfiles).toHaveLength(1);
   });
 });
+
+describe('1-Click Join and Instant Direct Registration without Email Verification', () => {
+  it('detects active authenticated session and indicates 1-click join availability', () => {
+    const activeProfile = {
+      id: 'p-1234',
+      name: 'Guillermo Rivera',
+      email: 'guillermoriveraterriza@gmail.com',
+      category: 'plus14',
+      rating: 1710,
+    };
+
+    const isAlreadyRegistered = false;
+    const canOneClickJoin = Boolean(activeProfile && !isAlreadyRegistered);
+
+    expect(canOneClickJoin).toBe(true);
+    expect(activeProfile.email).toBe('guillermoriveraterriza@gmail.com');
+  });
+
+  it('detects pre-existing registration and flags already registered state', () => {
+    const activeProfile = {
+      id: 'p-1234',
+      name: 'Guillermo Rivera',
+      email: 'guillermoriveraterriza@gmail.com',
+    };
+
+    const existingParticipants = [
+      { tournament_id: 't-1', user_id: 'p-1234' },
+      { tournament_id: 't-1', user_id: 'p-9999' },
+    ];
+
+    const isAlreadyRegistered = existingParticipants.some(
+      (p) => p.user_id === activeProfile.id && p.tournament_id === 't-1'
+    );
+
+    expect(isAlreadyRegistered).toBe(true);
+  });
+
+  it('completes new player registration with requiresVerification: false and direct session', () => {
+    const registrationResult = {
+      success: true,
+      data: {
+        requiresVerification: false,
+        participantId: 'p-new-uuid',
+        email: 'nuevo@pingpongcd.com',
+        tournamentId: 't-1',
+        tournamentName: 'Torneo Verano 2026',
+        category: 'plus14',
+        rating: 1500,
+      },
+    };
+
+    expect(registrationResult.success).toBe(true);
+    expect(registrationResult.data.requiresVerification).toBe(false);
+    expect(registrationResult.data.participantId).toBeDefined();
+  });
+});

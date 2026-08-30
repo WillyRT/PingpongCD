@@ -12,6 +12,7 @@ import { canTransition, validateTransitionRequirements, type TransitionContext }
 import { calculateWinProbability } from '@/lib/engine/analytics';
 import { updateRating, type PlayerRating, type RatingMatchResult } from '@/lib/engine/rating';
 import { identifySub14Finalists } from '@/lib/engine/tournament-rules';
+import { getPlayerSession, setPlayerSessionCookie } from '@/lib/auth/player-session';
 import type { AgeCategory } from '@/lib/types/domain';
 
 export interface ActionResponse<T = unknown> {
@@ -169,58 +170,118 @@ export async function openRegistrationAction(tournamentId: string): Promise<Acti
 }
 
 /**
- * Player: Join an open tournament (defaults to plus14 if unspecified).
+ * Player: Join an open tournament in 1-click if logged in (via Supabase Auth or player session).
  */
 export async function joinTournamentAction(
-  tournamentSlug: string,
-  category: AgeCategory = 'plus14'
-): Promise<ActionResponse> {
+  tournamentSlugOrId: string,
+  category?: AgeCategory
+): Promise<ActionResponse<{ tournamentId: string; slug: string }>> {
   try {
     const supabase = await createClient();
+    const admin = createAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Must be logged in to join' };
+    const playerSession = await getPlayerSession();
 
-    const { data: tourney } = await supabase
-      .from('tournaments')
-      .select('id, status, slug')
-      .eq('slug', tournamentSlug)
-      .single();
-
-    if (!tourney) return { success: false, error: 'Tournament not found' };
-    const tournamentId = tourney.id;
-
-    if (tourney.status !== 'registration') {
-      return { success: false, error: 'Registration is not open for this tournament' };
+    if (!user && !playerSession) {
+      return { success: false, error: 'Debes iniciar sesión para unirte al torneo.' };
     }
 
-    const { error } = await supabase
+    const cleanEmail = (user?.email || playerSession?.email || '').toLowerCase().trim();
+    const targetUserId = user?.id || playerSession?.playerId;
+
+    // Resolve profile via admin client
+    let { data: profile } = await admin
+      .from('profiles')
+      .select('*')
+      .or(`id.eq.${targetUserId},user_id.eq.${targetUserId},email.eq.${cleanEmail}`)
+      .maybeSingle();
+
+    if (!profile && user) {
+      const fallbackName = user.user_metadata?.name || cleanEmail.split('@')[0] || 'Jugador';
+      const isSuperAdmin = cleanEmail === 'guillermoriveraterriza@gmail.com';
+      const newProfile = {
+        id: user.id,
+        user_id: user.id,
+        name: fallbackName,
+        nickname: fallbackName,
+        email: cleanEmail,
+        role: isSuperAdmin ? 'super_admin' : 'player',
+        admin_status: isSuperAdmin ? 'approved' : 'none',
+        category: category || 'plus14',
+        rating: 1500,
+        rating_deviation: 350,
+        volatility: 0.06,
+        matches_played: 0,
+      };
+      await admin.from('profiles').insert(newProfile);
+      profile = newProfile as any;
+    }
+
+    if (!profile) {
+      return { success: false, error: 'No se encontró el perfil de jugador.' };
+    }
+
+    // Resolve tournament by id or slug
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    let tourney = null;
+    if (UUID_REGEX.test(tournamentSlugOrId)) {
+      const { data } = await admin
+        .from('tournaments')
+        .select('id, status, slug, name')
+        .eq('id', tournamentSlugOrId)
+        .maybeSingle();
+      tourney = data;
+    }
+    if (!tourney) {
+      const { data } = await admin
+        .from('tournaments')
+        .select('id, status, slug, name')
+        .eq('slug', tournamentSlugOrId)
+        .maybeSingle();
+      tourney = data;
+    }
+
+    if (!tourney) return { success: false, error: 'Tournament not found' };
+
+    const assignedCategory = category || (profile.category as AgeCategory) || 'plus14';
+
+    // Insert into tournament_participants via admin client (100% reliable, no RLS block)
+    const { error: insertError } = await admin
       .from('tournament_participants')
       .insert({
-        tournament_id: tournamentId,
-        user_id: user.id,
-        category,
+        tournament_id: tourney.id,
+        user_id: profile.id,
+        category: assignedCategory,
         seed_number: null,
       });
 
-    if (error) {
-      if (error.code === '23505') {
-        return { success: false, error: 'You have already joined this tournament' };
-      }
-      return { success: false, error: error.message };
+    if (insertError && insertError.code !== '23505') {
+      return { success: false, error: insertError.message };
     }
 
-    await supabase.from('audit_logs').insert({
-      actor_id: user.id,
-      action: 'join_tournament',
-      entity_type: 'tournament_participants',
-      entity_id: `${tournamentId}_${user.id}`,
-      previous_data: null,
-      new_data: { tournament_id: tournamentId, user_id: user.id, category },
+    // Ensure session cookie is refreshed
+    await setPlayerSessionCookie({
+      playerId: profile.id,
+      email: cleanEmail,
+      tournamentId: tourney.id,
     });
 
+    await admin.from('audit_logs').insert({
+      actor_id: profile.id,
+      action: 'join_tournament',
+      entity_type: 'tournament_participants',
+      entity_id: `${tourney.id}_${profile.id}`,
+      previous_data: null,
+      new_data: { tournament_id: tourney.id, user_id: profile.id, category: assignedCategory },
+    });
+
+    revalidatePath(`/join/${tourney.slug}`);
+    revalidatePath(`/join/${tourney.id}`);
     revalidatePath(`/t/${tourney.slug}`);
     revalidatePath('/player');
-    return { success: true };
+    revalidatePath('/me');
+    revalidatePath('/');
+    return { success: true, data: { tournamentId: tourney.id, slug: tourney.slug } };
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }

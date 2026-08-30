@@ -12,6 +12,7 @@ import {
   verifyPlayerRegistrationAction,
   type ExistingPlayerSuggestion,
 } from '@/lib/actions/registration';
+import { joinTournamentAction } from '@/lib/actions/tournament';
 import type { TournamentRow, ProfileRow } from '@/lib/types/database';
 import type { AgeCategory } from '@/lib/types/domain';
 
@@ -20,12 +21,14 @@ interface PublicJoinClientProps {
   participantCount: number;
   currentUser: { id: string; email: string } | null;
   existingProfile: ProfileRow | null;
+  isAlreadyRegistered?: boolean;
 }
 
 export function PublicJoinClient({
   tournament,
   currentUser,
   existingProfile,
+  isAlreadyRegistered = false,
 }: PublicJoinClientProps) {
   const [email, setEmail] = useState(currentUser?.email || existingProfile?.email || '');
   const [name, setName] = useState(existingProfile?.nickname || existingProfile?.name || '');
@@ -53,8 +56,9 @@ export function PublicJoinClient({
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [showManualForm, setShowManualForm] = useState(false);
 
-  // Verification step state
+  // Verification step state (fallback)
   const [step, setStep] = useState<'form' | 'verify'>('form');
   const [otpCode, setOtpCode] = useState('');
   const [devCode, setDevCode] = useState<string | null>(null);
@@ -169,6 +173,19 @@ export function PublicJoinClient({
     }
   };
 
+  // 1-Click Fast Join for Authenticated Users
+  const handleQuickJoin = () => {
+    setError(null);
+    startTransition(async () => {
+      const res = await joinTournamentAction(tournament.slug || tournament.id, category);
+      if (!res.success) {
+        setError(res.error || 'Error al procesar la inscripción');
+      } else {
+        setSuccess(true);
+      }
+    });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -192,14 +209,7 @@ export function PublicJoinClient({
       if (!res.success) {
         setError(res.error || 'Error al procesar la inscripción');
       } else {
-        if (res.data?.requiresVerification) {
-          setStep('verify');
-          if (res.data.devCode) {
-            setDevCode(res.data.devCode);
-          }
-        } else {
-          setSuccess(true);
-        }
+        setSuccess(true);
       }
     });
   };
@@ -310,6 +320,59 @@ export function PublicJoinClient({
     );
   }
 
+  // Already Registered Screen
+  if (isAlreadyRegistered) {
+    return (
+      <div className="max-w-md w-full p-8 rounded-2xl bg-[var(--card)] border border-[var(--border)] text-center animate-slide-up shadow-xl space-y-5">
+        <div className="text-5xl mb-2">🏓</div>
+        <h2 className="text-2xl font-black text-white">¡Ya estás inscrito!</h2>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          Tu participación en <strong>{tournament.name}</strong> ya se encuentra confirmada.
+        </p>
+
+        {existingProfile && (
+          <div className="p-4 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-left space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-[var(--muted-foreground)]">Jugador:</span>
+              <span className="font-bold text-white">{existingProfile.name || existingProfile.nickname}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[var(--muted-foreground)]">Correo:</span>
+              <span className="text-[var(--foreground)]">{existingProfile.email}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[var(--muted-foreground)]">Categoría:</span>
+              <span className="font-bold text-[var(--primary)]">
+                {getCategoryLabel(existingProfile.category as AgeCategory)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3 pt-2">
+          <Link
+            href={`/t/${tournament.slug}`}
+            className="w-full py-3.5 rounded-xl gradient-primary text-white font-bold text-center shadow-lg hover:opacity-95 transition flex items-center justify-center gap-2 text-sm"
+          >
+            🏆 Ver el Cuadro del Torneo
+          </Link>
+          <Link
+            href="/me"
+            className="w-full py-3 rounded-xl bg-[var(--secondary)] text-[var(--foreground)] font-semibold text-center hover:bg-[var(--secondary)]/80 transition flex items-center justify-center gap-2 border border-[var(--border)] text-sm"
+          >
+            👤 Mi Portal de Jugador
+          </Link>
+          <Link
+            href="/"
+            className="text-xs text-[var(--muted-foreground)] hover:text-white pt-2 text-center"
+          >
+            ← Volver a la Portada
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (success) {
     return (
       <div className="max-w-md w-full p-8 rounded-2xl bg-[var(--card)] border border-green-500/30 text-center animate-slide-up shadow-xl">
@@ -410,9 +473,79 @@ export function PublicJoinClient({
         </div>
       )}
 
-      {/* Registration Form Card */}
-      <div className="p-6 md:p-8 rounded-2xl bg-[var(--card)] border border-[var(--border)] shadow-xl">
-        <form onSubmit={handleSubmit} className="space-y-5">
+      {/* CASE A: Active Session 1-Click Join */}
+      {existingProfile && !showManualForm ? (
+        <div className="p-6 md:p-8 rounded-2xl bg-[var(--card)] border border-[var(--border)] shadow-xl space-y-6 animate-slide-up">
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-200">
+            <span className="text-2xl">⚡</span>
+            <div>
+              <p className="font-bold text-sm text-white">Sesión activa detectada</p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Inscripción rápida para <strong className="text-white">{existingProfile.name || existingProfile.nickname}</strong> ({existingProfile.email})
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-xl bg-[var(--secondary)] border border-[var(--border)] space-y-2.5 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-[var(--muted-foreground)]">Jugador:</span>
+              <span className="font-bold text-white">{existingProfile.name || existingProfile.nickname}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-[var(--muted-foreground)]">Categoría:</span>
+              <span className={`font-bold px-2 py-0.5 rounded text-xs ${
+                category === 'sub14' ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'
+              }`}>
+                {getCategoryLabel(category)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-[var(--muted-foreground)]">Rating Glicko-2:</span>
+              <span className="font-mono font-bold text-[var(--primary)]">
+                {Math.round(existingProfile.rating || 1500)} pts
+              </span>
+            </div>
+          </div>
+
+          {error && (
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleQuickJoin}
+            disabled={isPending}
+            className="w-full py-4 rounded-xl gradient-primary text-white font-bold text-base shadow-lg hover:opacity-95 transition flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {isPending ? (
+              <>
+                <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Confirmando inscripción...</span>
+              </>
+            ) : (
+              <span>Confirmar mi Inscripción</span>
+            )}
+          </button>
+
+          <div className="text-center pt-1">
+            <button
+              type="button"
+              onClick={() => setShowManualForm(true)}
+              className="text-xs text-[var(--muted-foreground)] hover:text-white underline"
+            >
+              ¿Deseas inscribirte con otro nombre o correo? Modificar datos
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Registration Form Card */
+        <div className="p-6 md:p-8 rounded-2xl bg-[var(--card)] border border-[var(--border)] shadow-xl">
+          <form onSubmit={handleSubmit} className="space-y-5">
           {error && (
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
               {error}
@@ -629,12 +762,35 @@ export function PublicJoinClient({
           <button
             type="submit"
             disabled={isPending}
-            className="w-full py-4 rounded-xl gradient-primary text-white font-bold text-base shadow-lg hover:opacity-95 transition-opacity disabled:opacity-50"
+            className="w-full py-4 rounded-xl gradient-primary text-white font-bold text-base shadow-lg hover:opacity-95 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {isPending ? 'Inscribiendo...' : 'Completar Registro'}
+            {isPending ? (
+              <>
+                <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Inscribiendo...</span>
+              </>
+            ) : (
+              <span>Confirmar mi Inscripción</span>
+            )}
           </button>
+
+          {existingProfile && (
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={() => setShowManualForm(false)}
+                className="text-xs text-[var(--muted-foreground)] hover:text-white underline"
+              >
+                ← Volver a inscripción en 1 clic con mi cuenta
+              </button>
+            </div>
+          )}
         </form>
       </div>
+      )}
     </div>
   );
 }

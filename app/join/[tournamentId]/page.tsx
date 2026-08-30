@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { getPlayerSession } from '@/lib/auth/player-session';
 import { notFound } from 'next/navigation';
 import { PublicJoinClient } from './PublicJoinClient';
 
@@ -12,12 +13,13 @@ export default async function PublicJoinPage({ params }: PageProps) {
   const { tournamentId } = await params;
   const decodedParam = decodeURIComponent(tournamentId).trim();
   const supabase = await createClient();
+  const admin = createAdminClient();
 
   let tournament = null;
 
   // a) Primero por id (si el parámetro tiene formato UUID)
   if (UUID_REGEX.test(decodedParam)) {
-    const { data } = await supabase
+    const { data } = await admin
       .from('tournaments')
       .select('*')
       .eq('id', decodedParam)
@@ -28,7 +30,7 @@ export default async function PublicJoinPage({ params }: PageProps) {
   // b) Si no lo encuentra o no es UUID, por la columna slug
   if (!tournament) {
     // 1. Intento por slug exacto decodificado
-    const { data: bySlug } = await supabase
+    const { data: bySlug } = await admin
       .from('tournaments')
       .select('*')
       .eq('slug', decodedParam)
@@ -44,7 +46,7 @@ export default async function PublicJoinPage({ params }: PageProps) {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
 
-      const { data: byNormSlug } = await supabase
+      const { data: byNormSlug } = await admin
         .from('tournaments')
         .select('*')
         .eq('slug', normalizedSlug)
@@ -54,7 +56,7 @@ export default async function PublicJoinPage({ params }: PageProps) {
 
     // 3. Intento case-insensitive
     if (!tournament) {
-      const { data: byIlike } = await supabase
+      const { data: byIlike } = await admin
         .from('tournaments')
         .select('*')
         .ilike('slug', decodedParam)
@@ -66,21 +68,58 @@ export default async function PublicJoinPage({ params }: PageProps) {
   if (!tournament) notFound();
 
   // Fetch participant count
-  const { count: participantCount } = await supabase
+  const { count: participantCount } = await admin
     .from('tournament_participants')
     .select('*', { count: 'exact', head: true })
     .eq('tournament_id', tournament.id);
 
-  // Check if current authenticated user
+  // Check if current authenticated user via Supabase Auth OR player session cookie
   const { data: { user } } = await supabase.auth.getUser();
-  let existingProfile = null;
-  if (user) {
-    const { data: prof } = await supabase
+  const playerSession = await getPlayerSession();
+
+  let profile: any = null;
+
+  // 1. Buscar por email de Supabase Auth
+  if (user?.email) {
+    const { data: pByEmail } = await admin
       .from('profiles')
       .select('*')
-      .eq('id', user.id)
-      .single();
-    existingProfile = prof;
+      .eq('email', user.email.toLowerCase())
+      .maybeSingle();
+    if (pByEmail) profile = pByEmail;
+  }
+
+  // 2. Buscar por ID de usuario o de sesión
+  const targetId = user?.id || playerSession?.playerId;
+  if (!profile && targetId) {
+    const { data: pById } = await admin
+      .from('profiles')
+      .select('*')
+      .or(`id.eq.${targetId},user_id.eq.${targetId}`)
+      .maybeSingle();
+    if (pById) profile = pById;
+  }
+
+  // 3. Buscar por email de sesión de jugador
+  if (!profile && playerSession?.email) {
+    const { data: pBySessionEmail } = await admin
+      .from('profiles')
+      .select('*')
+      .eq('email', playerSession.email.toLowerCase())
+      .maybeSingle();
+    if (pBySessionEmail) profile = pBySessionEmail;
+  }
+
+  // Check if already registered in this tournament
+  let isAlreadyRegistered = false;
+  if (profile) {
+    const { data: part } = await admin
+      .from('tournament_participants')
+      .select('id')
+      .eq('tournament_id', tournament.id)
+      .eq('user_id', profile.id)
+      .maybeSingle();
+    if (part) isAlreadyRegistered = true;
   }
 
   return (
@@ -88,8 +127,15 @@ export default async function PublicJoinPage({ params }: PageProps) {
       <PublicJoinClient
         tournament={tournament}
         participantCount={participantCount ?? 0}
-        currentUser={user ? { id: user.id, email: user.email ?? '' } : null}
-        existingProfile={existingProfile}
+        currentUser={
+          user
+            ? { id: user.id, email: user.email ?? '' }
+            : playerSession
+            ? { id: playerSession.playerId, email: playerSession.email }
+            : null
+        }
+        existingProfile={profile}
+        isAlreadyRegistered={isAlreadyRegistered}
       />
     </main>
   );
