@@ -27,18 +27,15 @@ export function MatchCard({ match, currentUserId, isAdmin = false }: MatchCardPr
   const p2Name = match.player2?.name || (isPlayer2 ? 'You' : 'Player 2');
 
   const statusBadges: Record<string, { label: string; bg: string }> = {
-    pending: { label: '⚪ PENDIENTE', bg: 'bg-neutral-500/20 text-neutral-400 border border-neutral-500/30' },
     scheduled: { label: '⏳ CALENTANDO', bg: 'bg-amber-500/20 text-amber-500 border border-amber-500/40' },
-    calling: { label: '⏳ CALENTANDO', bg: 'bg-amber-500/20 text-amber-500 border border-amber-500/40' },
     in_progress: { label: '🟢 EN PISTA', bg: 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40' },
-    submitted: { label: '🟡 PENDIENTE CONFIRMACIÓN', bg: 'bg-amber-500/20 text-amber-500 border border-amber-500/40' },
     pending_verification: { label: '🟡 PENDIENTE CONFIRMACIÓN', bg: 'bg-amber-500/20 text-amber-500 border border-amber-500/40' },
-    confirmed: { label: '🟢 FINALIZADO', bg: 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40' },
     completed: { label: '🟢 FINALIZADO', bg: 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40' },
     disputed: { label: '🔴 EN DISPUTA', bg: 'bg-red-500/20 text-red-500 border border-red-500/40' },
+    walkover: { label: '⚪ W.O.', bg: 'bg-neutral-500/20 text-neutral-400 border border-neutral-500/30' },
   };
 
-  const badge = statusBadges[match.status] ?? statusBadges.pending!;
+  const badge = statusBadges[match.status] ?? { label: '⏳ CALENTANDO', bg: 'bg-amber-500/20 text-amber-500 border border-amber-500/40' };
 
   const hasWinExpectancy = match.win_expectancy_p1 !== null && match.win_expectancy_p2 !== null;
   const pct1 = Math.round((match.win_expectancy_p1 ?? 0.5) * 100);
@@ -164,7 +161,7 @@ export function MatchCard({ match, currentUserId, isAdmin = false }: MatchCardPr
           </Link>
         )}
 
-        {(match.status === 'submitted' || match.status === 'reported' || match.status === 'pending_verification') && isParticipant && !isReporter && !isAdmin && (
+        {match.status === 'pending_verification' && isParticipant && !isReporter && !isAdmin && (
           <>
             <button
               type="button"
@@ -185,7 +182,7 @@ export function MatchCard({ match, currentUserId, isAdmin = false }: MatchCardPr
           </>
         )}
 
-        {(match.status === 'submitted' || match.status === 'reported' || match.status === 'pending_verification') && isReporter && !isAdmin && (
+        {match.status === 'pending_verification' && isReporter && !isAdmin && (
           <div className="w-full py-1.5 text-center text-xs text-[var(--muted-foreground)]">
             Waiting for opponent confirmation...
           </div>

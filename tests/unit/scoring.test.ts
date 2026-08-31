@@ -125,4 +125,58 @@ describe('Scoring Engine', () => {
       expect(validateGroupScore(-1, 7).valid).toBe(false);
     });
   });
+
+  describe('Dynamic Stage Score Presets (getScorePresetsForStage)', () => {
+    it('returns 7-point target presets for group stage', async () => {
+      const { getScorePresetsForStage } = await import('../../components/PlayerActiveMatchCard');
+      const groupPresets = getScorePresetsForStage('group');
+      expect(groupPresets).toEqual([
+        [7, 5],
+        [7, 4],
+        [7, 3],
+        [7, 2],
+        [8, 6],
+        [5, 7],
+        [4, 7],
+        [3, 7],
+        [2, 7],
+        [6, 8],
+      ]);
+    });
+
+    it('returns 15-point target presets for final match', async () => {
+      const { getScorePresetsForStage } = await import('../../components/PlayerActiveMatchCard');
+      const finalPresets = getScorePresetsForStage('final');
+      expect(finalPresets).toEqual([
+        [15, 13],
+        [15, 12],
+        [15, 11],
+        [15, 9],
+        [16, 14],
+        [13, 15],
+        [12, 15],
+        [11, 15],
+        [9, 15],
+        [14, 16],
+      ]);
+    });
+
+    it('returns 11-point target presets for playoff elimination rounds', async () => {
+      const { getScorePresetsForStage } = await import('../../components/PlayerActiveMatchCard');
+      for (const stage of ['round_of_16', 'quarterfinal', 'semifinal']) {
+        expect(getScorePresetsForStage(stage)).toEqual([
+          [11, 9],
+          [11, 8],
+          [11, 7],
+          [11, 5],
+          [12, 10],
+          [9, 11],
+          [8, 11],
+          [7, 11],
+          [5, 11],
+          [10, 12],
+        ]);
+      }
+    });
+  });
 });

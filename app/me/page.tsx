@@ -167,10 +167,8 @@ export default async function PlayerPortalPage() {
   // Next Pending Match for the active tournament or general pending
   const pendingMatches = (allMatches || []).filter(
     (m) =>
-      m.status === 'pending' ||
       m.status === 'scheduled' ||
       m.status === 'in_progress' ||
-      m.status === 'submitted' ||
       m.status === 'pending_verification' ||
       m.status === 'disputed'
   );
@@ -264,11 +262,7 @@ export default async function PlayerPortalPage() {
     .filter((m: any) => {
       const reporterId = m.reported_by_id || m.reported_by;
       const isReporter = reporterId === profile.id;
-      const isPendingStatus =
-        m.status === 'reported' ||
-        m.status === 'submitted' ||
-        m.status === 'pending_verification';
-      return isPendingStatus && !isReporter;
+      return m.status === 'pending_verification' && !isReporter;
     })
     .map((m: any) => {
       const isP1 = m.player1_id === profile.id;
@@ -305,11 +299,7 @@ export default async function PlayerPortalPage() {
   // 🚨 High Priority "¡A PISTA!" Alert: Match on physical table (1 to 4) ready or in progress
   const callingMatch = (allMatches || []).find((m: any) => {
     const hasTable = typeof m.table_number === 'number' && m.table_number >= 1 && m.table_number <= 4;
-    const isCallingOrPlaying =
-      m.status === 'in_progress' ||
-      m.status === 'calling' ||
-      (m.status === 'scheduled' && hasTable);
-    return hasTable && isCallingOrPlaying;
+    return hasTable && (m.status === 'scheduled' || m.status === 'in_progress');
   });
 
   const callingMatchRivalName = callingMatch

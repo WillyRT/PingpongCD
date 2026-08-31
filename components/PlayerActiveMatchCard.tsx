@@ -9,6 +9,57 @@ import {
 } from '@/lib/actions/matches';
 import { createClient } from '@/lib/supabase/client';
 
+/**
+ * Dynamic score presets according to the tournament match stage:
+ * - 'group': 7-point presets ([7,5], [7,4], [7,3], [7,2], [8,6] and reverses)
+ * - 'final': 15-point presets ([15,13], [15,12], [15,11], [15,9], [16,14] and reverses)
+ * - 'round_of_16' | 'quarterfinal' | 'semifinal': 11-point presets ([11,9], [11,8], [11,7], [11,5], [12,10] and reverses)
+ */
+export function getScorePresetsForStage(stage?: string | null): [number, number][] {
+  const s = stage?.toLowerCase().trim() || 'group';
+  if (s === 'group' || s.startsWith('group') || s === 'groups') {
+    return [
+      [7, 5],
+      [7, 4],
+      [7, 3],
+      [7, 2],
+      [8, 6],
+      [5, 7],
+      [4, 7],
+      [3, 7],
+      [2, 7],
+      [6, 8],
+    ];
+  }
+  if (s === 'final') {
+    return [
+      [15, 13],
+      [15, 12],
+      [15, 11],
+      [15, 9],
+      [16, 14],
+      [13, 15],
+      [12, 15],
+      [11, 15],
+      [9, 15],
+      [14, 16],
+    ];
+  }
+  // 'round_of_16' | 'quarterfinal' | 'semifinal' or other playoff stages
+  return [
+    [11, 9],
+    [11, 8],
+    [11, 7],
+    [11, 5],
+    [12, 10],
+    [9, 11],
+    [8, 11],
+    [7, 11],
+    [5, 11],
+    [10, 12],
+  ];
+}
+
 interface PlayerActiveMatchCardProps {
   match: {
     id: string;
@@ -32,12 +83,15 @@ interface PlayerActiveMatchCardProps {
 }
 
 export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatchCardProps) {
+  const stagePresets = getScorePresetsForStage(match.stage);
+  const defaultInitialScores = stagePresets[0] || [7, 5];
+
   const [showReportModal, setShowReportModal] = useState(false);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [disputeReason, setDisputeReason] = useState('');
   const [disputeEvidenceUrl, setDisputeEvidenceUrl] = useState('');
-  const [score1, setScore1] = useState(7);
-  const [score2, setScore2] = useState(5);
+  const [score1, setScore1] = useState(defaultInitialScores[0]);
+  const [score2, setScore2] = useState(defaultInitialScores[1]);
   const [loading, setLoading] = useState(false);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,11 +103,9 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
   const opponentScore = isPlayer1 ? match.scorePlayer2 : match.scorePlayer1;
   const myScore = isPlayer1 ? match.scorePlayer1 : match.scorePlayer2;
 
-  const isPendingVerification =
-    match.status === 'pending_verification' ||
-    match.status === 'submitted' ||
-    match.status === 'reported';
-  const isCompleted = match.status === 'confirmed' || match.status === 'completed';
+  // Strict Canonical Statuses from Migration 010
+  const isPendingVerification = match.status === 'pending_verification';
+  const isCompleted = match.status === 'completed';
   const isDisputed = match.status === 'disputed';
 
   const handleReport = async (e: React.FormEvent) => {
@@ -302,22 +354,7 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
                 ⚡ Tanteos Frecuentes (1 toque)
               </span>
               <div className="grid grid-cols-4 gap-1.5">
-                {([
-                  [11, 8],
-                  [11, 9],
-                  [11, 7],
-                  [11, 6],
-                  [11, 5],
-                  [11, 4],
-                  [12, 10],
-                  [8, 11],
-                  [9, 11],
-                  [7, 11],
-                  [6, 11],
-                  [5, 11],
-                  [4, 11],
-                  [10, 12],
-                ] as [number, number][]).map(([s1, s2]) => (
+                {stagePresets.map(([s1, s2]) => (
                   <button
                     key={`${s1}-${s2}`}
                     type="button"

@@ -13,11 +13,8 @@ export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientPr
   const statusLabels: Record<string, { label: string; color: string }> = {
     draft: { label: 'Borrador', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
     registration: { label: 'Inscripciones Abiertas', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
-    registration_open: { label: 'Inscripciones Abiertas', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
     group_stage: { label: 'Fase de Grupos en Vivo', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
     bracket_stage: { label: 'Playoffs / Cuadro Final', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
-    in_progress: { label: 'En Juego', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-    live: { label: 'En Directo', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
     finished: { label: 'Finalizado', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
   };
 
@@ -162,7 +159,7 @@ export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientPr
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {initialTournaments.map((t) => {
               const st = statusLabels[t.status] || { label: t.status, color: 'bg-gray-500/20 text-gray-300 border-gray-500/30' };
-              const isOpen = t.status === 'registration' || (t.status as string) === 'registration_open' || t.status === 'draft';
+              const isOpen = t.status === 'registration' || t.status === 'draft';
               const isTest = t.name.toLowerCase().includes('prueba') || t.slug.toLowerCase().includes('test');
 
               return (

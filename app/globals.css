@@ -128,6 +128,9 @@ body {
   --border: #000000;
   --primary: #1d4ed8;
   --primary-foreground: #ffffff;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --warning: #f59e0b;
   --ring: #000000;
 }
 

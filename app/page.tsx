@@ -32,7 +32,7 @@ export default async function HomePage() {
     const { data } = await admin
       .from('tournaments')
       .select('*')
-      .in('status', ['draft', 'registration', 'registration_open', 'group_stage', 'bracket_stage', 'in_progress', 'live'])
+      .in('status', ['draft', 'registration', 'group_stage', 'bracket_stage'])
       .order('created_at', { ascending: false })
       .limit(20);
 
