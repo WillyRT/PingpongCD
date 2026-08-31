@@ -142,7 +142,7 @@ export function NavbarClient({ user }: NavbarClientProps) {
               }`}
             >
               <span>{isSunlight ? '☀️' : '🌙'}</span>
-              <span className="hidden sm:inline">{isSunlight ? 'Modo Sol' : 'Modo Oscuro'}</span>
+              <span className="hidden sm:inline">{isSunlight ? 'Modo Sol' : 'Modo Normal'}</span>
             </button>
             {user ? (
               <div className="flex items-center gap-2.5">

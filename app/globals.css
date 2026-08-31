@@ -102,7 +102,7 @@ body {
   --foreground: #000000;
   --card: #f8fafc;
   --card-foreground: #000000;
-  --secondary: #e2e8f0;
+  --secondary: #f1f5f9;
   --secondary-foreground: #000000;
   --muted: #f1f5f9;
   --muted-foreground: #000000;
@@ -112,6 +112,7 @@ body {
   --ring: #000000;
 }
 
+.sunlight-mode,
 .sunlight-mode body {
   background-color: #ffffff !important;
   color: #000000 !important;
@@ -128,36 +129,64 @@ body {
   border-bottom: 2px solid #000000 !important;
 }
 
-/* Hard contrast card borders and typography */
+/* Hard contrast card borders and typography: #F8FAFC panels with border-2 border-black */
+.sunlight-mode .rounded-3xl,
 .sunlight-mode .rounded-2xl,
 .sunlight-mode .rounded-xl {
   border-color: #000000 !important;
   border-width: 2px !important;
 }
 
-.sunlight-mode .text-\[var\(--muted-foreground\)\] {
-  color: #000000 !important;
-  font-weight: 700 !important;
-}
-
-.sunlight-mode .text-gray-300,
-.sunlight-mode .text-gray-400,
-.sunlight-mode .text-slate-400 {
-  color: #111827 !important;
-  font-weight: 600 !important;
-}
-
-.sunlight-mode .bg-\[var\(--card\)\] {
+.sunlight-mode .bg-\[var\(--card\)\],
+.sunlight-mode [class*="bg-[var(--card)]"] {
   background-color: #f8fafc !important;
   color: #000000 !important;
 }
 
-.sunlight-mode .bg-\[var\(--secondary\)\] {
-  background-color: #e2e8f0 !important;
+.sunlight-mode .bg-\[var\(--secondary\)\],
+.sunlight-mode [class*="bg-[var(--secondary)]"] {
+  background-color: #f1f5f9 !important;
   color: #000000 !important;
 }
 
+/* Black typography with font-black / font-bold */
+.sunlight-mode h1,
+.sunlight-mode h2,
+.sunlight-mode h3,
+.sunlight-mode h4,
+.sunlight-mode strong,
+.sunlight-mode b,
+.sunlight-mode .font-black {
+  color: #000000 !important;
+  font-weight: 900 !important;
+}
+
+.sunlight-mode p,
+.sunlight-mode span,
+.sunlight-mode label,
+.sunlight-mode .font-bold {
+  color: #000000 !important;
+}
+
+.sunlight-mode .text-\[var\(--muted-foreground\)\],
+.sunlight-mode .text-gray-300,
+.sunlight-mode .text-gray-400,
+.sunlight-mode .text-slate-400 {
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+/* Mandatory tabular-nums for scoreboards, stopwatches and ELO ratings */
+.sunlight-mode .tabular-nums,
+.sunlight-mode [data-numeric],
+.sunlight-mode .score-display,
+.sunlight-mode .rating-display,
+.tabular-nums {
+  font-variant-numeric: tabular-nums !important;
+  font-feature-settings: "tnum" !important;
+}
+
 .sunlight-mode .bg-black\/75,
-.sunlight-mode .bg-black\/50 {
+.sunlight-mode .bg-black\/80 {
   background-color: rgba(0, 0, 0, 0.85) !important;
 }

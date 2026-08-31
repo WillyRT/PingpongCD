@@ -7,6 +7,7 @@ import {
   confirmMatchScoreAction,
   disputeMatchScoreAction,
 } from '@/lib/actions/matches';
+import { createClient } from '@/lib/supabase/client';
 
 interface PlayerActiveMatchCardProps {
   match: {
@@ -38,6 +39,7 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
   const [score1, setScore1] = useState(7);
   const [score2, setScore2] = useState(5);
   const [loading, setLoading] = useState(false);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isPlayer1 = match.player1Id === currentUserId;
@@ -117,6 +119,37 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
       setError('Error de conexión');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUploadEvidence = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingEvidence(true);
+    setError(null);
+    try {
+      const supabase = createClient();
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const filePath = `evidence/${match.id}-${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from('evidence')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) {
+        // Fallback: If bucket is restricted or uncreated, generate a data URL so evidence is never lost
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setDisputeEvidenceUrl(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        const { data: publicData } = supabase.storage.from('evidence').getPublicUrl(filePath);
+        setDisputeEvidenceUrl(publicData.publicUrl);
+      }
+    } catch {
+      setError('Error al procesar la foto');
+    } finally {
+      setUploadingEvidence(false);
     }
   };
 
@@ -416,19 +449,42 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-[var(--foreground)] mb-1">
-                  📷 Enlace o Foto de Evidencia (opcional):
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-[var(--foreground)]">
+                  📷 Foto o Enlace de Evidencia (opcional):
                 </label>
-                <input
-                  type="url"
-                  value={disputeEvidenceUrl}
-                  onChange={(e) => setDisputeEvidenceUrl(e.target.value)}
-                  placeholder="https://ejemplo.com/foto-marcador.jpg"
-                  className="w-full p-2.5 rounded-xl bg-[var(--secondary)] border-2 border-[var(--border)] text-xs text-[var(--foreground)] focus:outline-none focus:border-red-500"
-                />
-                <p className="text-[10px] text-[var(--muted-foreground)] mt-1">
-                  Foto del marcador de mesa o papel de acta para mediación inmediata del árbitro.
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <label className="cursor-pointer px-3 py-2 rounded-xl bg-[var(--secondary)] border-2 border-dashed border-[var(--border)] hover:border-[var(--primary)] text-xs font-bold flex items-center gap-1.5 transition">
+                      <span>📸</span>
+                      <span>{uploadingEvidence ? 'Subiendo foto...' : 'Subir Foto de Acta'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingEvidence}
+                        onChange={handleUploadEvidence}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {disputeEvidenceUrl && (
+                      <span className="text-[11px] font-bold text-green-400 flex items-center gap-1">
+                        ✓ Foto Adjunta
+                      </span>
+                    )}
+                  </div>
+
+                  <input
+                    type="url"
+                    value={disputeEvidenceUrl}
+                    onChange={(e) => setDisputeEvidenceUrl(e.target.value)}
+                    placeholder="O pega URL: https://ejemplo.com/foto.jpg"
+                    className="w-full p-2.5 rounded-xl bg-[var(--secondary)] border-2 border-[var(--border)] text-xs text-[var(--foreground)] focus:outline-none focus:border-red-500"
+                  />
+                </div>
+                <p className="text-[10px] text-[var(--muted-foreground)]">
+                  Sube foto del marcador o papel de acta para mediación inmediata del árbitro.
                 </p>
               </div>
 

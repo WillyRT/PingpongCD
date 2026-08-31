@@ -338,7 +338,7 @@ export default async function PlayerPortalPage() {
               <span className="text-3xl sm:text-4xl animate-bounce">🚨</span>
               <div>
                 <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-black">
-                  ¡A PISTA! MESA {callingMatch.table_number}: vs {callingMatchRivalName}
+                  🚨 ¡A PISTA! MESA {callingMatch.table_number}: vs {callingMatchRivalName} — Acude a calentar
                 </h2>
                 <p className="text-xs sm:text-sm font-bold text-black/80">
                   Tu partido ha sido llamado a pista oficial. Acude de inmediato a calentar.

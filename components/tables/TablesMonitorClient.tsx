@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -37,6 +37,19 @@ export function TablesMonitorClient({
   const router = useRouter();
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [currentTime, setCurrentTime] = useState<string>('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+        setIsFullscreen(false);
+      }
+    }
+  };
 
   // Clock
   useEffect(() => {
@@ -139,6 +152,16 @@ export function TablesMonitorClient({
             }`}
           >
             {autoRefresh ? '⚡ Refresco Activo (10s)' : '⏸️ Refresco Pausado'}
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="px-3 py-1.5 rounded-xl bg-[var(--secondary)] border-2 border-[var(--border)] text-xs font-bold hover:bg-[var(--secondary)]/80 transition flex items-center gap-1.5"
+            title="Modo Pantalla Completa para Proyector o Tablet"
+          >
+            <span>⛶</span>
+            <span>{isFullscreen ? 'Salir Pantalla' : 'Pantalla Completa'}</span>
           </button>
 
           <Link
