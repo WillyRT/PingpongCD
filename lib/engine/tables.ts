@@ -43,16 +43,16 @@ export function getTableSemaphore(match?: TableMatch | null): {
   light: 'green' | 'blue' | 'yellow' | 'red';
   label: string;
 } {
-  if (!match || match.status === 'completed' || match.status === 'confirmed' || match.status === 'walkover') {
+  if (!match || match.status === 'completed' || match.status === 'walkover') {
     return { light: 'green', label: 'Libre' };
   }
   if (match.status === 'disputed') {
     return { light: 'red', label: 'En Disputa' };
   }
-  if (match.status === 'pending_verification' || match.status === 'submitted') {
+  if (match.status === 'pending_verification') {
     return { light: 'yellow', label: 'Pendiente Confirmación' };
   }
-  if (match.status === 'in_progress' || match.status === 'scheduled' || match.status === 'pending') {
+  if (match.status === 'in_progress' || match.status === 'scheduled') {
     return { light: 'blue', label: 'En Juego' };
   }
   return { light: 'green', label: 'Libre' };
@@ -112,14 +112,14 @@ export function dispatchStationTables({
       const activeMatch =
         groupMatches.find((m) => m.table_number === t && m.status === 'disputed') ||
         groupMatches.find((m) => m.status === 'disputed') ||
-        groupMatches.find((m) => m.table_number === t && (m.status === 'pending_verification' || m.status === 'submitted')) ||
-        groupMatches.find((m) => m.status === 'pending_verification' || m.status === 'submitted') ||
+        groupMatches.find((m) => m.table_number === t && m.status === 'pending_verification') ||
+        groupMatches.find((m) => m.status === 'pending_verification') ||
         groupMatches.find((m) => m.table_number === t && m.status === 'in_progress') ||
         groupMatches.find((m) => m.status === 'in_progress');
 
       // 2. If table is available (freed), assign next pending match strictly from this group
       const nextPending = !activeMatch
-        ? groupMatches.find((m) => m.status === 'scheduled' || m.status === 'pending') || null
+        ? groupMatches.find((m) => m.status === 'scheduled') || null
         : null;
 
       const current = activeMatch || nextPending;
@@ -129,7 +129,6 @@ export function dispatchStationTables({
         (m) =>
           m.id !== current?.id &&
           m.status !== 'completed' &&
-          m.status !== 'confirmed' &&
           m.status !== 'walkover'
       );
 
@@ -160,7 +159,6 @@ export function dispatchStationTables({
       (m) =>
         m.table_number === t &&
         m.status !== 'completed' &&
-        m.status !== 'confirmed' &&
         m.status !== 'walkover'
     );
 
@@ -176,7 +174,6 @@ export function dispatchStationTables({
     if (
       m.status === 'in_progress' ||
       m.status === 'pending_verification' ||
-      m.status === 'submitted' ||
       m.status === 'disputed'
     ) {
       if (m.player1_id) busyPlayerIds.add(m.player1_id);
@@ -188,7 +185,6 @@ export function dispatchStationTables({
   const candidateMatches = matches.filter(
     (m) =>
       m.status !== 'completed' &&
-      m.status !== 'confirmed' &&
       m.status !== 'walkover' &&
       !tableAssignments.some((assigned) => assigned?.id === m.id) &&
       m.player1_id &&

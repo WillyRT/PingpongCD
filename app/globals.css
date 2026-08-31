@@ -3,18 +3,18 @@
 :root {
   /* Tokens Modo Claro (Predeterminado para exteriores) */
   --background: #f8fafc;
-  --foreground: #09090b;
+  --foreground: #18181b;
   --card: #ffffff;
-  --card-foreground: #09090b;
+  --card-foreground: #18181b;
   --primary: #2563eb;
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
-  --secondary-foreground: #09090b;
+  --secondary-foreground: #52525b;
   --accent: #10b981;
   --accent-foreground: #ffffff;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --border: #e2e8f0;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --border: #e4e4e7;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
   --warning: #f59e0b;
@@ -30,22 +30,22 @@
 .dark {
   /* Tokens Modo Oscuro */
   --background: #09090b;
-  --foreground: #f8fafc;
+  --foreground: #fafafa;
   --card: #18181b;
-  --card-foreground: #f8fafc;
-  --primary: #3b82f6;
-  --primary-foreground: #ffffff;
+  --card-foreground: #fafafa;
+  --primary: #60a5fa;
+  --primary-foreground: #09090b;
   --secondary: #27272a;
-  --secondary-foreground: #f8fafc;
+  --secondary-foreground: #a1a1aa;
   --accent: #10b981;
-  --accent-foreground: #ffffff;
+  --accent-foreground: #09090b;
   --muted: #27272a;
   --muted-foreground: #a1a1aa;
   --border: rgba(255, 255, 255, 0.1);
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
+  --destructive: #f87171;
+  --destructive-foreground: #09090b;
   --warning: #f59e0b;
-  --ring: #3b82f6;
+  --ring: #60a5fa;
 }
 
 body {
@@ -121,7 +121,7 @@ body {
   --foreground: #000000;
   --card: #f8fafc;
   --card-foreground: #000000;
-  --secondary: #f1f5f9;
+  --secondary: #e2e8f0;
   --secondary-foreground: #000000;
   --muted: #f1f5f9;
   --muted-foreground: #000000;

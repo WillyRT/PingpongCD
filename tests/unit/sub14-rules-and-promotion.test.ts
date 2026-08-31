@@ -175,5 +175,61 @@ describe('Sub-14 Rules Parity & Senior Promotion Engine Suite', () => {
       expect(seniorEnrollments[1]!.position).toBe(2);
       expect(seniorEnrollments[1]!.preservedRating).toBe(1572.1);
     });
+
+    it('promoted Sub-14 finalists are included in real senior groups (GA-GD) during seeding and group assignment', async () => {
+      const { distributeByCategory } = await import('../../lib/engine/seeding');
+      const { assignSeniorGroups } = await import('../../lib/engine/groups');
+
+      const seniorPlayers = Array.from({ length: 14 }, (_, i) => ({
+        id: `senior-${i + 1}`,
+        rating: 1600 - i * 10,
+        rating_deviation: 50,
+        matches_played: 10,
+        category: 'plus14' as const,
+      }));
+
+      const promotedFinalists = [
+        {
+          id: 'champ-sub14',
+          rating: 1550,
+          rating_deviation: 60,
+          matches_played: 8,
+          category: 'sub14_promoted' as const,
+        },
+        {
+          id: 'runner-sub14',
+          rating: 1540,
+          rating_deviation: 65,
+          matches_played: 8,
+          category: 'sub14_promoted' as const,
+        },
+      ];
+
+      const allParticipants = [...seniorPlayers, ...promotedFinalists];
+      expect(allParticipants).toHaveLength(16);
+
+      // 1. Using distributeByCategory
+      const seedingResults = distributeByCategory(allParticipants, (count) => Math.ceil(count / 4));
+      const seniorSeeding = seedingResults.get('plus14');
+      expect(seniorSeeding).toBeDefined();
+
+      const champAssignment = seniorSeeding?.assignments.find((a) => a.player.id === 'champ-sub14');
+      const runnerAssignment = seniorSeeding?.assignments.find((a) => a.player.id === 'runner-sub14');
+
+      expect(champAssignment).toBeDefined();
+      expect(champAssignment?.groupIndex).toBeGreaterThanOrEqual(0);
+      expect(champAssignment?.groupIndex).toBeLessThan(4);
+      expect(runnerAssignment).toBeDefined();
+      expect(runnerAssignment?.groupIndex).toBeGreaterThanOrEqual(0);
+      expect(runnerAssignment?.groupIndex).toBeLessThan(4);
+
+      // 2. Using assignSeniorGroups
+      const groupMap = assignSeniorGroups(allParticipants, 4);
+      expect(groupMap.size).toBe(4);
+
+      const allGroupPlayers = Array.from(groupMap.values()).flat();
+      expect(allGroupPlayers.some((p) => p.id === 'champ-sub14')).toBe(true);
+      expect(allGroupPlayers.some((p) => p.id === 'runner-sub14')).toBe(true);
+    });
   });
 });

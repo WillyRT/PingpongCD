@@ -299,9 +299,8 @@ describe('4-Table Physical Station Dispatcher Suite', () => {
       expect(getTableSemaphore({ status: 'scheduled' } as any)).toEqual({ light: 'blue', label: 'En Juego' });
     });
 
-    it('returns yellow (Pendiente Confirmación) when score is submitted', () => {
+    it('returns yellow (Pendiente Confirmación) when score is pending verification', () => {
       expect(getTableSemaphore({ status: 'pending_verification' } as any)).toEqual({ light: 'yellow', label: 'Pendiente Confirmación' });
-      expect(getTableSemaphore({ status: 'submitted' } as any)).toEqual({ light: 'yellow', label: 'Pendiente Confirmación' });
     });
 
     it('returns red (En Disputa) when score is disputed', () => {
