@@ -13,6 +13,7 @@ import { calculateWinProbability } from '@/lib/engine/analytics';
 import { updateRating, type PlayerRating, type RatingMatchResult } from '@/lib/engine/rating';
 import { identifySub14Finalists } from '@/lib/engine/tournament-rules';
 import { getPlayerSession, setPlayerSessionCookie } from '@/lib/auth/player-session';
+import { isSeniorEligible } from '@/lib/engine/categories';
 import type { AgeCategory } from '@/lib/types/domain';
 
 export interface ActionResponse<T = unknown> {
@@ -313,7 +314,11 @@ export async function generateGroupsAndScheduleAction(
       .eq('tournament_id', tournamentId);
 
     if (targetCategory) {
-      query = query.eq('category', targetCategory);
+      if (isSeniorEligible(targetCategory)) {
+        query = query.in('category', ['plus14', 'sub14_promoted']);
+      } else {
+        query = query.eq('category', targetCategory);
+      }
     }
 
     const { data: participants, error: pError } = await query;
@@ -324,11 +329,13 @@ export async function generateGroupsAndScheduleAction(
 
     // Determine categories present
     const categories: AgeCategory[] = targetCategory
-      ? [targetCategory]
-      : Array.from(new Set(participants.map((p) => (p.category ?? 'plus14') as AgeCategory)));
+      ? [isSeniorEligible(targetCategory) ? 'plus14' : targetCategory]
+      : Array.from(new Set(participants.map((p) => isSeniorEligible(p.category) ? 'plus14' : (p.category ?? 'plus14') as AgeCategory)));
 
     for (const cat of categories) {
-      const catParticipants = participants.filter((p) => (p.category ?? 'plus14') === cat);
+      const catParticipants = participants.filter((p) =>
+        cat === 'plus14' ? isSeniorEligible(p.category) : p.category === 'sub14'
+      );
       if (catParticipants.length < 4) continue;
 
       const totalPlayers = catParticipants.length;
@@ -509,11 +516,18 @@ export async function configureQualifiersAndGenerateBracketAction(
     if (mError) return { success: false, error: 'Failed to fetch confirmed matches' };
 
     // Fetch seeds
-    const { data: participants } = await supabase
+    let pQuery = supabase
       .from('tournament_participants')
       .select('user_id, group_id, seed_number, profiles:user_id (rating)')
-      .eq('tournament_id', tournamentId)
-      .eq('category', category);
+      .eq('tournament_id', tournamentId);
+
+    if (isSeniorEligible(category)) {
+      pQuery = pQuery.in('category', ['plus14', 'sub14_promoted']);
+    } else {
+      pQuery = pQuery.eq('category', category);
+    }
+
+    const { data: participants } = await pQuery;
 
     const seedsMap = new Map<string, number>();
     const ratingsMap = new Map<string, number>();
@@ -775,18 +789,24 @@ export async function finishTournamentAction(tournamentId: string): Promise<Acti
  * Promotes Sub-14 Champion and Runner-up into the Senior tournament draw.
  * Preserves updated Glicko-2 ratings and registers them with category 'sub14_promoted'.
  */
-export async function promoteSub14FinalistsAction(input: {
-  sub14TournamentId: string;
-  seniorTournamentId: string;
-}): Promise<ActionResponse<{ promoted: Array<{ playerId: string; name: string; position: 1 | 2 }> }>> {
+export async function promoteSub14FinalistsAction(
+  inputOrSub14Id: { sub14TournamentId: string; seniorTournamentId: string } | string,
+  maybeSeniorTournamentId?: string
+): Promise<ActionResponse<{ promoted: Array<{ playerId: string; name: string; position: 1 | 2 }> }>> {
   try {
     const admin = createAdminClient();
+    const sub14TournamentId = typeof inputOrSub14Id === 'string' ? inputOrSub14Id : inputOrSub14Id.sub14TournamentId;
+    const seniorTournamentId = typeof inputOrSub14Id === 'string' ? (maybeSeniorTournamentId || '') : inputOrSub14Id.seniorTournamentId;
+
+    if (!sub14TournamentId || !seniorTournamentId) {
+      return { success: false, error: 'Faltan IDs del torneo Sub-14 o del torneo Senior' };
+    }
 
     // 1. Fetch Sub-14 matches to identify champion and runner-up
     const { data: sub14Matches, error: mErr } = await admin
       .from('matches')
       .select('*')
-      .eq('tournament_id', input.sub14TournamentId);
+      .eq('tournament_id', sub14TournamentId);
 
     if (mErr || !sub14Matches || sub14Matches.length === 0) {
       return { success: false, error: 'No se encontraron partidos para el torneo Sub-14' };
@@ -814,7 +834,7 @@ export async function promoteSub14FinalistsAction(input: {
     const { data: seniorTournament, error: sErr } = await admin
       .from('tournaments')
       .select('*')
-      .eq('id', input.seniorTournamentId)
+      .eq('id', seniorTournamentId)
       .single();
 
     if (sErr || !seniorTournament) {
@@ -838,7 +858,7 @@ export async function promoteSub14FinalistsAction(input: {
     for (const f of finalists) {
       await admin.from('tournament_participants').upsert(
         {
-          tournament_id: input.seniorTournamentId,
+          tournament_id: seniorTournamentId,
           user_id: f.playerId,
           category: 'sub14_promoted' as any,
           confirmed_at: new Date().toISOString(),
@@ -847,7 +867,7 @@ export async function promoteSub14FinalistsAction(input: {
       );
     }
 
-    revalidatePath(`/admin/tournaments/${input.seniorTournamentId}`);
+    revalidatePath(`/admin/tournaments/${seniorTournamentId}`);
     revalidatePath(`/t/${seniorTournament.slug}`);
 
     return {

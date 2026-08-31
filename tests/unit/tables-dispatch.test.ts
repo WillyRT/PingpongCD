@@ -84,6 +84,79 @@ describe('4-Table Physical Station Dispatcher Suite', () => {
       expect(dispatched[3]!.currentMatch?.id).toBe('m-d1');
       expect(dispatched[3]!.statusLight).toBe('blue');
     });
+
+    it('when Table 1 frees up, it assigns the next pending match of Group A', () => {
+      const matchesWithA2: TableMatch[] = [
+        {
+          id: 'm-a1',
+          stage: 'group',
+          group_id: 'grp-a',
+          player1_id: 'p1',
+          player2_id: 'p2',
+          status: 'completed',
+          score_player1: 7,
+          score_player2: 4,
+        },
+        {
+          id: 'm-a2',
+          stage: 'group',
+          group_id: 'grp-a',
+          player1_id: 'p1',
+          player2_id: 'p3',
+          status: 'scheduled',
+        },
+      ];
+
+      const dispatched = dispatchStationTables({ groups, matches: matchesWithA2, isPlayoffs: false });
+      expect(dispatched[0]!.tableNumber).toBe(1);
+      expect(dispatched[0]!.assignedGroup?.group_code).toBe('A');
+      expect(dispatched[0]!.currentMatch?.id).toBe('m-a2');
+      expect(dispatched[0]!.statusLight).toBe('blue');
+    });
+
+    it('when all matches in Group A are finished, Table 1 remains available (idle) and does not take matches from other groups', () => {
+      const matchesWithEmptyA: TableMatch[] = [
+        {
+          id: 'm-a1',
+          stage: 'group',
+          group_id: 'grp-a',
+          player1_id: 'p1',
+          player2_id: 'p2',
+          status: 'completed',
+        },
+        {
+          id: 'm-b1',
+          stage: 'group',
+          group_id: 'grp-b',
+          player1_id: 'p3',
+          player2_id: 'p4',
+          status: 'scheduled',
+        },
+        {
+          id: 'm-b2',
+          stage: 'group',
+          group_id: 'grp-b',
+          player1_id: 'p3',
+          player2_id: 'p5',
+          status: 'scheduled',
+        },
+      ];
+
+      const dispatched = dispatchStationTables({ groups, matches: matchesWithEmptyA, isPlayoffs: false });
+      // Table 1 has no more matches in Group A -> remains available / Libre
+      expect(dispatched[0]!.tableNumber).toBe(1);
+      expect(dispatched[0]!.currentMatch).toBeNull();
+      expect(dispatched[0]!.isIdle).toBe(true);
+      expect(dispatched[0]!.statusLight).toBe('green');
+      expect(dispatched[0]!.statusLabel).toBe('Libre');
+
+      // Table 1 must NOT have taken m-b2 from Group B!
+      expect(dispatched[0]!.currentMatch?.id).toBeUndefined();
+
+      // Table 2 takes m-b1 for Group B
+      expect(dispatched[1]!.tableNumber).toBe(2);
+      expect(dispatched[1]!.currentMatch?.id).toBe('m-b1');
+    });
   });
 
   describe('2. Dynamic Dispatch for tournaments with < 4 groups (e.g. 2 groups)', () => {

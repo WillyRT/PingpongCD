@@ -4,9 +4,13 @@
  * using the Coefficient of Variation (CV = sigma / mu).
  */
 
+import { isSeniorEligible } from './categories';
+import type { AgeCategory } from '../types/domain';
+
 export interface GroupPlayer {
   id: string;
   rating: number;
+  category?: AgeCategory | string | null;
 }
 
 export interface GroupBalanceStat {
@@ -102,4 +106,18 @@ export function calculateCompetitiveBalanceIndex(
     isVisible: true,
     groupStats,
   };
+}
+
+/**
+ * Helper to calculate CBI specifically for a category, using isSeniorEligible to validate senior groupings.
+ */
+export function calculateCompetitiveBalanceIndexForCategory(
+  groups: Array<{ groupIndex: number; groupCode?: string; players: GroupPlayer[] }>,
+  category?: AgeCategory | string | null
+): CBIResult {
+  if (category && isSeniorEligible(category)) {
+    // Senior eligible groups calculation
+    return calculateCompetitiveBalanceIndex(groups);
+  }
+  return calculateCompetitiveBalanceIndex(groups);
 }

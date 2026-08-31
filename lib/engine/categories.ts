@@ -1,6 +1,16 @@
 import type { AgeCategory } from '../types/domain';
 
 /**
+ * Helper to determine senior eligibility.
+ * Eligible categories for the senior draw are:
+ * - 'plus14' (regular senior)
+ * - 'sub14_promoted' (Sub-14 finalists promoted to senior)
+ */
+export function isSeniorEligible(category: AgeCategory | string | null | undefined): boolean {
+  return category === 'plus14' || category === 'sub14_promoted';
+}
+
+/**
  * Determine official age category:
  * - 'sub14' (Junior): Players 14 years old or younger (<= 14)
  * - 'plus14' (Senior / Absoluta): Players older than 14 (> 14)

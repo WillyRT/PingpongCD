@@ -89,26 +89,42 @@ export function dispatchStationTables({
   const isFixed4Group = !isPlayoffs && groups.length === 4;
 
   if (isFixed4Group) {
-    // 1:1 Mapping: Table 1 -> Group A, Table 2 -> Group B, Table 3 -> Group C, Table 4 -> Group D
+    // Invariante Física de 4 Mesas en Fase de Grupos:
+    // Mesa 1 = Exclusiva Grupo GA
+    // Mesa 2 = Exclusiva Grupo GB
+    // Mesa 3 = Exclusiva Grupo GC
+    // Mesa 4 = Exclusiva Grupo GD
+    // Al liberarse la Mesa N, el despachador solo puede asignar el siguiente partido pendiente de su grupo.
+    // Si no hay partidos disponibles en ese grupo, la mesa permanece libre (available) sin ser ocupada por otros grupos.
     for (let t = 1; t <= TOTAL_TABLES; t++) {
-      const code = String.fromCharCode(64 + t); // 'A', 'B', 'C', 'D'
-      const assignedGroup = groups.find((g) => g.group_code === code) || null;
+      const letter = String.fromCharCode(64 + t); // 'A', 'B', 'C', 'D'
+      const assignedGroup = groups.find((g) => {
+        const code = g.group_code?.toUpperCase();
+        return code === letter || code === `G${letter}`;
+      }) || (groups[t - 1] ?? null);
 
+      // Exclusive to this group: strictly matches belonging to this group
       const groupMatches = assignedGroup
-        ? matches.filter((m) => m.group_id === assignedGroup.id || m.table_number === t)
-        : matches.filter((m) => m.table_number === t);
+        ? matches.filter((m) => m.group_id === assignedGroup.id)
+        : [];
 
-      // Active / current match: disputed > pending_verification > in_progress > scheduled
-      const current =
+      // 1. Check for active/ongoing match in this group (disputed > pending_verification > in_progress)
+      const activeMatch =
         groupMatches.find((m) => m.table_number === t && m.status === 'disputed') ||
         groupMatches.find((m) => m.status === 'disputed') ||
         groupMatches.find((m) => m.table_number === t && (m.status === 'pending_verification' || m.status === 'submitted')) ||
         groupMatches.find((m) => m.status === 'pending_verification' || m.status === 'submitted') ||
-        groupMatches.find((m) => m.table_number === t && (m.status === 'in_progress' || m.status === 'scheduled')) ||
-        groupMatches.find((m) => m.status === 'in_progress') ||
-        groupMatches.find((m) => m.status === 'scheduled' || m.status === 'pending') ||
-        null;
+        groupMatches.find((m) => m.table_number === t && m.status === 'in_progress') ||
+        groupMatches.find((m) => m.status === 'in_progress');
 
+      // 2. If table is available (freed), assign next pending match strictly from this group
+      const nextPending = !activeMatch
+        ? groupMatches.find((m) => m.status === 'scheduled' || m.status === 'pending') || null
+        : null;
+
+      const current = activeMatch || nextPending;
+
+      // Unplayed remaining matches for this group
       const queue = groupMatches.filter(
         (m) =>
           m.id !== current?.id &&

@@ -1,4 +1,6 @@
 import { MAX_GROUPS, MIN_PLAYERS, GROUP_THRESHOLDS } from './constants';
+import { isSeniorEligible } from './categories';
+import type { AgeCategory } from '../types/domain';
 
 /**
  * Calculate the number of groups based on total players.
@@ -65,4 +67,28 @@ export function validateGroupDistribution(sizes: number[]): boolean {
 /** Get group label from index (0 = 'A', 1 = 'B', etc.) */
 export function getGroupLabel(index: number): string {
   return String.fromCharCode(65 + index); // A, B, C, D
+}
+
+/** Filter players eligible for senior groups GA-GD */
+export function filterSeniorGroupPlayers<T extends { category?: AgeCategory | string | null }>(players: T[]): T[] {
+  return players.filter((p) => isSeniorEligible(p.category));
+}
+
+/**
+ * Assigns players to senior groups GA-GD based on isSeniorEligible.
+ */
+export function assignSeniorGroups<T extends { id: string; category?: AgeCategory | string | null }>(
+  players: T[],
+  groupCount: number = 4
+): Map<string, T[]> {
+  const eligible = filterSeniorGroupPlayers(players);
+  const groups = new Map<string, T[]>();
+  for (let i = 0; i < groupCount; i++) {
+    groups.set(getGroupLabel(i), []);
+  }
+  eligible.forEach((player, idx) => {
+    const code = getGroupLabel(idx % groupCount);
+    groups.get(code)?.push(player);
+  });
+  return groups;
 }

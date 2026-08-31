@@ -76,6 +76,13 @@ export default async function AdminTournamentDetailPage({ params }: PageProps) {
     .order('created_at', { ascending: false })
     .limit(50);
 
+  // Fetch other tournaments for senior promotion selector
+  const { data: otherTournaments } = await supabase
+    .from('tournaments')
+    .select('id, name, slug, status')
+    .neq('id', id)
+    .order('created_at', { ascending: false });
+
   return (
     <AdminTournamentClient
       tournament={tournament}
@@ -85,6 +92,7 @@ export default async function AdminTournamentDetailPage({ params }: PageProps) {
       matches={matches ?? []}
       auditLogs={auditLogs ?? []}
       currentUserId={user.id}
+      otherTournaments={otherTournaments ?? []}
     />
   );
 }

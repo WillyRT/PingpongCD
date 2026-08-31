@@ -24,6 +24,7 @@ import {
   reassignParticipantGroupAction,
   finishTournamentAction,
   deleteTournamentAction,
+  promoteSub14FinalistsAction,
 } from '@/lib/actions/tournament';
 import {
   resolveDisputeAction,
@@ -33,7 +34,7 @@ import {
 } from '@/lib/actions/admin';
 import { calculateStandings, type ConfirmedMatch } from '@/lib/engine/standings';
 import { calculateCompetitiveBalanceIndex } from '@/lib/engine/cbi';
-import { getCategoryLabel, determineAgeCategory } from '@/lib/engine/categories';
+import { getCategoryLabel, determineAgeCategory, isSeniorEligible } from '@/lib/engine/categories';
 import type { AgeCategory } from '@/lib/types/domain';
 
 interface AdminTournamentClientProps {
@@ -44,6 +45,7 @@ interface AdminTournamentClientProps {
   matches: (MatchRow & { player1?: { id: string; name: string }; player2?: { id: string; name: string } })[];
   auditLogs: (AuditLogRow & { profiles?: { name: string } })[];
   currentUserId: string;
+  otherTournaments?: Array<{ id: string; name: string; slug: string; status: string }>;
 }
 
 export function AdminTournamentClient({
@@ -54,6 +56,7 @@ export function AdminTournamentClient({
   matches,
   auditLogs,
   currentUserId,
+  otherTournaments,
 }: AdminTournamentClientProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'overview' | 'groups' | 'qualifiers' | 'bracket' | 'disputes' | 'audit' | 'qr'>('overview');
@@ -61,6 +64,14 @@ export function AdminTournamentClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [qualifiersPerGroup, setQualifiersPerGroup] = useState<number>(config?.qualifiers_per_group ?? 2);
+
+  // Sub-14 Finalists Promotion to Senior State
+  const [seniorTournamentId, setSeniorTournamentId] = useState<string>(() => {
+    return otherTournaments?.[0]?.id || '';
+  });
+  const [promotionLoading, setPromotionLoading] = useState(false);
+  const [promotionSuccess, setPromotionSuccess] = useState<string | null>(null);
+  const [promotionError, setPromotionError] = useState<string | null>(null);
 
   // Tournament Deletion state
   const [showDeleteTournamentModal, setShowDeleteTournamentModal] = useState(false);
@@ -135,15 +146,27 @@ export function AdminTournamentClient({
   // Filter items by category
   const filteredParticipants = selectedCategory === 'all'
     ? participants
-    : participants.filter((p) => (p.category ?? 'plus14') === selectedCategory);
+    : participants.filter((p) =>
+        selectedCategory === 'plus14'
+          ? isSeniorEligible(p.category)
+          : p.category === selectedCategory
+      );
 
   const filteredGroups = selectedCategory === 'all'
     ? groups
-    : groups.filter((g) => (g.category ?? 'plus14') === selectedCategory);
+    : groups.filter((g) =>
+        selectedCategory === 'plus14'
+          ? isSeniorEligible(g.category)
+          : g.category === selectedCategory
+      );
 
   const filteredMatches = selectedCategory === 'all'
     ? matches
-    : matches.filter((m) => (m.category ?? 'plus14') === selectedCategory);
+    : matches.filter((m) =>
+        selectedCategory === 'plus14'
+          ? isSeniorEligible(m.category)
+          : m.category === selectedCategory
+      );
 
   const disputedMatches = filteredMatches.filter((m) => m.status === 'disputed');
   const groupMatches = filteredMatches.filter((m) => m.stage === 'group');
@@ -229,6 +252,42 @@ export function AdminTournamentClient({
     else setSelectedDisputeMatch(null);
     setLoading(false);
   };
+
+  // Sub-14 Finalists Promotion Handler
+  const handlePromoteFinalists = async () => {
+    if (!seniorTournamentId.trim()) {
+      setPromotionError('Por favor selecciona o introduce el ID del torneo Senior de destino.');
+      return;
+    }
+    setPromotionLoading(true);
+    setPromotionError(null);
+    setPromotionSuccess(null);
+    try {
+      const res = await promoteSub14FinalistsAction(tournament.id, seniorTournamentId.trim());
+      if (!res.success) {
+        setPromotionError(res.error || 'Error al promover los finalistas');
+      } else {
+        const names = res.data?.promoted?.map((p) => p.name).join(' y ') || 'Finalistas';
+        setPromotionSuccess(`¡Finalistas promovidos con éxito! ${names} han sido inscritos en la categoría Absoluta (+14) del torneo Senior.`);
+        router.refresh();
+      }
+    } catch (err: any) {
+      setPromotionError(err?.message || 'Error inesperado al promover finalistas');
+    } finally {
+      setPromotionLoading(false);
+    }
+  };
+
+  // Sub-14 Tournament and Finished Final verification
+  const isSub14Tournament =
+    tournament.name.toLowerCase().includes('sub-14') ||
+    tournament.name.toLowerCase().includes('sub14') ||
+    tournament.name.toLowerCase().includes('sub 14') ||
+    (participants.length > 0 && participants.every((p) => p.category === 'sub14'));
+
+  const finalMatch = matches.find((m) => m.stage === 'final');
+  const isFinalCompleted = !!finalMatch && (finalMatch.status === 'completed' || finalMatch.status === 'confirmed');
+  const showPromotionBanner = (isSub14Tournament || finalMatch?.category === 'sub14') && isFinalCompleted;
 
   // Participant filtering by search
   const displayedParticipants = filteredParticipants.filter((p) => {
@@ -391,7 +450,7 @@ export function AdminTournamentClient({
                   : 'bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-white'
               }`}
             >
-              🔵 {getCategoryLabel('plus14')} ({participants.filter(p => (p.category ?? 'plus14') === 'plus14').length})
+              🔵 {getCategoryLabel('plus14')} ({participants.filter(p => isSeniorEligible(p.category)).length})
             </button>
             <button
               onClick={() => setSelectedCategory('sub14')}
@@ -423,6 +482,71 @@ export function AdminTournamentClient({
             🔗 Página de Registro
           </Link>
         </div>
+
+        {/* Sub-14 Finalists Promotion to Senior Highlighted Card */}
+        {showPromotionBanner && (
+          <div className="p-6 rounded-2xl bg-gradient-to-r from-amber-500/20 via-purple-500/20 to-blue-500/20 border-2 border-amber-500/40 shadow-xl space-y-4 animate-scale-up">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">🏆</span>
+                  <h3 className="text-lg font-black text-white">
+                    Final Sub-14 Concluida — ¡Promoción a Categoría Absoluta (+14)!
+                  </h3>
+                </div>
+                <p className="text-sm text-gray-300 mt-1">
+                  El campeón y subcampeón Sub-14 pueden ser promovidos directamente al cuadro del torneo Senior conservando su puntuación Glicko-2 y categoría <code className="px-1.5 py-0.5 rounded bg-black/40 text-amber-300 font-mono text-xs">sub14_promoted</code>.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+                {otherTournaments && otherTournaments.length > 0 ? (
+                  <select
+                    value={seniorTournamentId}
+                    onChange={(e) => setSeniorTournamentId(e.target.value)}
+                    className="px-3 py-2.5 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-xs text-white focus:outline-none"
+                    title="Seleccionar Torneo Senior"
+                  >
+                    {otherTournaments.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.status})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={seniorTournamentId}
+                    onChange={(e) => setSeniorTournamentId(e.target.value)}
+                    placeholder="ID de Torneo Senior..."
+                    className="px-3 py-2 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-xs text-white focus:outline-none w-52"
+                  />
+                )}
+
+                <button
+                  type="button"
+                  disabled={promotionLoading || !seniorTournamentId.trim()}
+                  onClick={handlePromoteFinalists}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-extrabold text-sm shadow-md transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {promotionLoading ? 'Promoviendo...' : '🚀 Promover Finalistas a Mayores'}
+                </button>
+              </div>
+            </div>
+
+            {promotionSuccess && (
+              <div className="p-3 rounded-xl bg-green-500/20 border border-green-500/40 text-green-300 text-xs font-semibold flex items-center gap-2">
+                <span>✅</span> {promotionSuccess}
+              </div>
+            )}
+
+            {promotionError && (
+              <div className="p-3 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-semibold flex items-center gap-2">
+                <span>❌</span> {promotionError}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Phase Control Banner */}
         <div className="p-6 rounded-2xl bg-[var(--card)] border border-[var(--border)] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">

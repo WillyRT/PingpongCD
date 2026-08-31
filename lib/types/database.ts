@@ -181,7 +181,7 @@ export type TournamentConfigUpdate = Partial<Omit<TournamentConfigRow, 'id' | 't
 export interface TournamentGroupRow {
   id: string;
   tournament_id: string;
-  category: 'sub14' | 'plus14';
+  category: 'sub14' | 'plus14' | 'sub14_promoted';
   group_code: string;
   status: 'pending' | 'active' | 'completed';
   expected_matches: number;
@@ -209,7 +209,7 @@ export type TournamentParticipantUpdate = Partial<Omit<TournamentParticipantRow,
 export interface MatchRow {
   id: string;
   tournament_id: string;
-  category: 'sub14' | 'plus14';
+  category: 'sub14' | 'plus14' | 'sub14_promoted';
   stage: 'group' | 'round_of_16' | 'quarterfinal' | 'semifinal' | 'final';
   group_id: string | null;
   bracket_match_id: string | null;

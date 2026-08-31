@@ -6,6 +6,8 @@ import {
   type BracketMatch,
   type QualifiedPlayer,
 } from './bracket';
+import { isSeniorEligible } from './categories';
+import type { AgeCategory } from '../types/domain';
 
 /**
  * Standard seed pairings for single elimination brackets of size B (powers of 2).
@@ -176,4 +178,9 @@ export function generatePlayoffsWithByes(qualifiers: QualifiedPlayer[]): Bracket
     rounds: totalRounds,
     totalSlots: bracketSize,
   };
+}
+
+/** Filter playoff qualifiers who are eligible for the senior category */
+export function filterSeniorPlayoffQualifiers<T extends { category?: AgeCategory | string | null }>(qualifiers: T[]): T[] {
+  return qualifiers.filter((q) => isSeniorEligible(q.category));
 }

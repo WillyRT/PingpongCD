@@ -10,6 +10,9 @@
  * (Deterministic fallback: initial tournament seed / ID).
  */
 
+import { isSeniorEligible } from './categories';
+import type { AgeCategory } from '../types/domain';
+
 export interface Standing {
   playerId: string;
   position: number;
@@ -22,6 +25,7 @@ export interface Standing {
   seed: number;
   initialRating?: number;
   liveRating?: number;
+  category?: AgeCategory | string | null;
 }
 
 export interface ConfirmedMatch {
@@ -337,3 +341,8 @@ export function getHeadToHead(
 }
 
 export { resolveMiniLeague as _resolveMiniLeagueForTesting };
+
+/** Filter standings of players who are eligible for the senior category */
+export function filterSeniorStandings<T extends { category?: AgeCategory | string | null }>(items: T[]): T[] {
+  return items.filter((item) => isSeniorEligible(item.category));
+}

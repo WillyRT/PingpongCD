@@ -1,4 +1,5 @@
 import type { AgeCategory } from '../types/domain';
+import { isSeniorEligible } from './categories';
 import { calculateCompetitiveBalanceIndex, type CBIResult } from './cbi';
 
 /** Minimal player interface for seeding */
@@ -121,7 +122,9 @@ export function distributeByCategory(
   const categories: AgeCategory[] = ['plus14', 'sub14'];
 
   for (const cat of categories) {
-    const catPlayers = players.filter((p) => (p.category ?? 'plus14') === cat);
+    const catPlayers = players.filter((p) =>
+      cat === 'plus14' ? isSeniorEligible(p.category) : p.category === 'sub14'
+    );
     if (catPlayers.length === 0) continue;
 
     const seeded = assignSeeds(catPlayers);
