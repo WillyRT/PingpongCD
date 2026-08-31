@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -18,6 +19,27 @@ interface NavbarClientProps {
 
 export function NavbarClient({ user }: NavbarClientProps) {
   const pathname = usePathname();
+  const [isSunlight, setIsSunlight] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'sunlight') {
+      setIsSunlight(true);
+      document.documentElement.classList.add('sunlight-mode');
+    }
+  }, []);
+
+  const toggleSunlightMode = () => {
+    const next = !isSunlight;
+    setIsSunlight(next);
+    if (next) {
+      document.documentElement.classList.add('sunlight-mode');
+      localStorage.setItem('theme', 'sunlight');
+    } else {
+      document.documentElement.classList.remove('sunlight-mode');
+      localStorage.setItem('theme', 'dark');
+    }
+  };
 
   const initials = user
     ? (user.nickname || user.name || 'J')
@@ -71,6 +93,14 @@ export function NavbarClient({ user }: NavbarClientProps) {
               🏆 Torneos
             </Link>
             <Link
+              href="/tables"
+              className={`transition hover:text-white flex items-center gap-1.5 ${
+                pathname === '/tables' ? 'text-white font-bold' : 'text-[var(--muted-foreground)]'
+              }`}
+            >
+              🏓 4 Mesas
+            </Link>
+            <Link
               href="/historico"
               className={`transition hover:text-white flex items-center gap-1.5 ${
                 pathname.startsWith('/historico') ? 'text-white font-bold' : 'text-[var(--muted-foreground)]'
@@ -98,8 +128,22 @@ export function NavbarClient({ user }: NavbarClientProps) {
             )}
           </nav>
 
-          {/* User Auth Action Button */}
-          <div className="flex items-center gap-3">
+          {/* Controls & User Auth Action Button */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Sunlight Mode Toggle */}
+            <button
+              type="button"
+              onClick={toggleSunlightMode}
+              title={isSunlight ? 'Cambiar a Modo Oscuro' : 'Activar Modo Sol (Alto Contraste Exterior)'}
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition border ${
+                isSunlight
+                  ? 'bg-amber-400 text-black border-black shadow-sm font-black'
+                  : 'bg-[var(--secondary)] text-[var(--foreground)] border-[var(--border)] hover:border-amber-400/50'
+              }`}
+            >
+              <span>{isSunlight ? '☀️' : '🌙'}</span>
+              <span className="hidden sm:inline">{isSunlight ? 'Modo Sol' : 'Modo Oscuro'}</span>
+            </button>
             {user ? (
               <div className="flex items-center gap-2.5">
                 <Link
@@ -162,6 +206,15 @@ export function NavbarClient({ user }: NavbarClientProps) {
         >
           <span className="text-base">🏆</span>
           <span>Torneos</span>
+        </Link>
+        <Link
+          href="/tables"
+          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold transition ${
+            pathname === '/tables' ? 'text-[var(--primary)] font-black' : 'text-[var(--muted-foreground)]'
+          }`}
+        >
+          <span className="text-base">🏓</span>
+          <span>4 Mesas</span>
         </Link>
         <Link
           href="/historico"

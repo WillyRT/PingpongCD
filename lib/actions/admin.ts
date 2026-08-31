@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { resolveDisputeSchema } from '@/lib/validation/schemas';
 import { validateScoreForStage, determineWinner } from '@/lib/engine/scoring';
 import { determineAgeCategory } from '@/lib/engine/categories';
+import { getPlayerSession } from '@/lib/auth/player-session';
 import type { ActionResponse } from './tournament';
 
 /** Helper to verify if user has admin/referee privileges based solely on database RBAC */
@@ -786,5 +787,39 @@ export async function adminAddParticipantAction(
     };
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : 'Error inesperado añadiendo participante' };
+  }
+}
+
+/**
+ * Player: Update grip style and rubber type (informative badges only, no rating impact).
+ */
+export async function updatePlayerMaterialAction(input: {
+  gripStyle?: 'shakehand' | 'penhold' | null;
+  rubberType?: string | null;
+}): Promise<ActionResponse> {
+  try {
+    const supabase = await createClient();
+    const admin = createAdminClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const playerSession = await getPlayerSession();
+
+    const callerId = user?.id || playerSession?.playerId;
+    if (!callerId) return { success: false, error: 'Se requiere sesión activa' };
+
+    await admin
+      .from('profiles')
+      .update({
+        grip_style: input.gripStyle ?? null,
+        rubber_type: input.rubberType?.trim() ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', callerId);
+
+    revalidatePath('/me');
+    revalidatePath('/player');
+    revalidatePath('/tables');
+    return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Error actualizando material' };
   }
 }

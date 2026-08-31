@@ -3,7 +3,9 @@ import { isSeniorEligible } from '@/lib/engine/categories';
 import { distributeByCategory, type SeedablePlayer } from '@/lib/engine/seeding';
 import { assignSeniorGroups, filterSeniorGroupPlayers } from '@/lib/engine/groups';
 import { identifySub14Finalists } from '@/lib/engine/tournament-rules';
-import { promoteSub14FinalistsAction, generateGroupsAndScheduleAction } from '@/lib/actions/tournament';
+import { promoteSub14FinalistsAction, generateGroupsAndScheduleAction, checkInParticipantAction } from '@/lib/actions/tournament';
+import { disputeMatchScoreAction } from '@/lib/actions/matches';
+import { dispatchStationTables } from '@/lib/engine/tables';
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
@@ -307,6 +309,171 @@ describe('Integration Test: Sub-14 Promotion & Senior Draw Seeding (tests/integr
       );
       expect(runnerMatches.length).toBeGreaterThan(0);
       expect(runnerMatches[0]?.group_id).toBe(runner?.group_id);
+    });
+  });
+
+  describe('4. Check-in Previo & Confirmación de Asistencia', () => {
+    it('allows participant to confirm presence before draw', async () => {
+      const { createClient, createAdminClient } = await import('@/lib/supabase/server');
+
+      let updatedCheckedInAt: string | null = null;
+      (createClient as any).mockReturnValue({
+        auth: {
+          getUser: async () => ({ data: { user: { id: 'player-test-checkin' } } }),
+        },
+      });
+
+      (createAdminClient as any).mockReturnValue({
+        from: (table: string) => {
+          if (table === 'tournaments') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  single: async () => ({
+                    data: { id: 't-checkin', name: 'Torneo Verano', status: 'registration', check_in_closes_at: null },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === 'tournament_participants') {
+            return {
+              update: (fields: any) => {
+                updatedCheckedInAt = fields.checked_in_at;
+                return {
+                  eq: () => ({
+                    eq: () => Promise.resolve({ error: null }),
+                  }),
+                };
+              },
+            };
+          }
+          return { select: vi.fn(), update: vi.fn() };
+        },
+      });
+
+      const res = await checkInParticipantAction('t-checkin', 'player-test-checkin');
+      expect(res.success).toBe(true);
+      expect(res.data?.checkedInAt).toBeTruthy();
+      expect(updatedCheckedInAt).toBeTruthy();
+    });
+  });
+
+  describe('5. Dispute With Optional Photo Evidence', () => {
+    it('records dispute_evidence_url on match and audit log upon score dispute', async () => {
+      const { createClient, createAdminClient } = await import('@/lib/supabase/server');
+
+      let matchUpdatePayload: any = null;
+      let auditLogPayload: any = null;
+
+      (createClient as any).mockReturnValue({
+        auth: {
+          getUser: async () => ({ data: { user: { id: 'p2-opponent' } } }),
+        },
+      });
+
+      (createAdminClient as any).mockReturnValue({
+        from: (table: string) => {
+          if (table === 'matches') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  single: async () => ({
+                    data: {
+                      id: 'match-dispute-1',
+                      tournament_id: 't-1',
+                      status: 'pending_verification',
+                      player1_id: 'p1-reporter',
+                      player2_id: 'p2-opponent',
+                      reported_by_id: 'p1-reporter',
+                      score_player1: 11,
+                      score_player2: 5,
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+              update: (payload: any) => {
+                matchUpdatePayload = payload;
+                return {
+                  eq: () => Promise.resolve({ error: null }),
+                };
+              },
+            };
+          }
+          if (table === 'profiles') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  single: async () => ({ data: { role: 'player' }, error: null }),
+                  maybeSingle: async () => ({ data: { role: 'player' }, error: null }),
+                }),
+              }),
+            };
+          }
+          if (table === 'audit_logs') {
+            return {
+              insert: async (payload: any) => {
+                auditLogPayload = payload;
+                return { error: null };
+              },
+            };
+          }
+          return { select: vi.fn(), update: vi.fn(), insert: vi.fn() };
+        },
+      });
+
+      const res = await disputeMatchScoreAction(
+        'match-dispute-1',
+        'El tanteo fue 11-9 a mi favor, adjunto foto de acta',
+        'https://supabase.co/storage/v1/object/public/evidence/acta-mesa3.jpg'
+      );
+
+      expect(res.success).toBe(true);
+      expect(matchUpdatePayload.status).toBe('disputed');
+      expect(matchUpdatePayload.dispute_reason).toBe('El tanteo fue 11-9 a mi favor, adjunto foto de acta');
+      expect(matchUpdatePayload.dispute_evidence_url).toBe(
+        'https://supabase.co/storage/v1/object/public/evidence/acta-mesa3.jpg'
+      );
+      expect(auditLogPayload.new_data.dispute_evidence_url).toBe(
+        'https://supabase.co/storage/v1/object/public/evidence/acta-mesa3.jpg'
+      );
+    });
+  });
+
+  describe('6. 4-Table Live Monitor Dispatch Invariant', () => {
+    it('dispatches the 4 tables strictly to GA-GD in groups stage and open FIFO in playoffs', () => {
+      const groups = [
+        { id: 'g-1', group_code: 'GA', name: 'Grupo GA' },
+        { id: 'g-2', group_code: 'GB', name: 'Grupo GB' },
+        { id: 'g-3', group_code: 'GC', name: 'Grupo GC' },
+        { id: 'g-4', group_code: 'GD', name: 'Grupo GD' },
+      ];
+
+      const matches = [
+        { id: 'm-ga', group_id: 'g-1', stage: 'group', player1_id: 'p1', player2_id: 'p2', status: 'in_progress', table_number: 1 },
+        { id: 'm-gb', group_id: 'g-2', stage: 'group', player1_id: 'p3', player2_id: 'p4', status: 'scheduled' },
+        { id: 'm-gc', group_id: 'g-3', stage: 'group', player1_id: 'p5', player2_id: 'p6', status: 'completed' },
+        { id: 'm-gd', group_id: 'g-4', stage: 'group', player1_id: 'p7', player2_id: 'p8', status: 'scheduled' },
+      ];
+
+      const groupDispatch = dispatchStationTables({ groups, matches: matches as any, isPlayoffs: false });
+      expect(groupDispatch).toHaveLength(4);
+      expect(groupDispatch[0]!.tableNumber).toBe(1);
+      expect(groupDispatch[0]!.currentMatch?.id).toBe('m-ga');
+
+      expect(groupDispatch[1]!.tableNumber).toBe(2);
+      expect(groupDispatch[1]!.currentMatch?.id).toBe('m-gb');
+
+      // Table 3: all GC matches completed -> remains free, does not steal other groups
+      expect(groupDispatch[2]!.tableNumber).toBe(3);
+      expect(groupDispatch[2]!.isIdle).toBe(true);
+      expect(groupDispatch[2]!.currentMatch).toBeNull();
+      expect(groupDispatch[2]!.statusLight).toBe('green');
+
+      expect(groupDispatch[3]!.tableNumber).toBe(4);
+      expect(groupDispatch[3]!.currentMatch?.id).toBe('m-gd');
     });
   });
 });

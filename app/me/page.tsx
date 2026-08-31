@@ -8,6 +8,7 @@ import { getCategoryLabel } from '@/lib/engine/categories';
 import { PlayerActiveMatchCard } from '@/components/PlayerActiveMatchCard';
 import { PendingMatchValidations, type PendingValidationMatch } from '@/components/PendingMatchValidations';
 import { PlayerProfileView, type MatchDetailItem } from '@/components/PlayerProfileView';
+import { ParticipantCheckInCard } from '@/components/ParticipantCheckInCard';
 import type { AgeCategory } from '@/lib/types/domain';
 
 export default async function PlayerPortalPage() {
@@ -301,9 +302,70 @@ export default async function PlayerPortalPage() {
     profile.role === 'referee' ||
     user?.email === 'guillermoriveraterriza@gmail.com';
 
+  // 🚨 High Priority "¡A PISTA!" Alert: Match on physical table (1 to 4) ready or in progress
+  const callingMatch = (allMatches || []).find((m: any) => {
+    const hasTable = typeof m.table_number === 'number' && m.table_number >= 1 && m.table_number <= 4;
+    const isCallingOrPlaying =
+      m.status === 'in_progress' ||
+      m.status === 'calling' ||
+      (m.status === 'scheduled' && hasTable);
+    return hasTable && isCallingOrPlaying;
+  });
+
+  const callingMatchRivalName = callingMatch
+    ? (callingMatch.player1_id === profile.id
+        ? (callingMatch.player2?.nickname || callingMatch.player2?.name || 'Rival')
+        : (callingMatch.player1?.nickname || callingMatch.player1?.name || 'Rival'))
+    : null;
+
+  // Pending Check-in for active/upcoming tournaments
+  const checkInPendingParticipation = (participations || []).find((p: any) => {
+    const t = p.tournaments;
+    if (!t) return false;
+    const isPreDraw = t.status === 'registration' || t.status === 'draft';
+    const isCheckedIn = !!p.checked_in_at;
+    const isClosed = t.check_in_closes_at && new Date() > new Date(t.check_in_closes_at);
+    return isPreDraw && !isCheckedIn && !isClosed;
+  });
+
   return (
     <main className="min-h-screen pb-24 bg-[var(--background)] text-[var(--foreground)] px-4 py-6 md:py-10">
       <div className="max-w-5xl mx-auto space-y-6 animate-slide-up">
+        {/* 🚨 Priority Banner: ¡A PISTA! Mesa X vs Rival */}
+        {callingMatch && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-amber-400 text-black border-4 border-black shadow-[0_6px_0_0_#000000] animate-pulse flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl sm:text-4xl animate-bounce">🚨</span>
+              <div>
+                <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-black">
+                  ¡A PISTA! MESA {callingMatch.table_number}: vs {callingMatchRivalName}
+                </h2>
+                <p className="text-xs sm:text-sm font-bold text-black/80">
+                  Tu partido ha sido llamado a pista oficial. Acude de inmediato a calentar.
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center gap-2">
+              <Link
+                href="/tables"
+                className="px-4 py-2.5 rounded-xl bg-black text-white text-xs font-black uppercase tracking-wider hover:bg-neutral-800 transition shadow"
+              >
+                Ver Monitor 4 Mesas →
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Priority Check-in Confirmation Card */}
+        {checkInPendingParticipation && (
+          <ParticipantCheckInCard
+            tournamentId={checkInPendingParticipation.tournament_id}
+            tournamentName={(checkInPendingParticipation.tournaments as any)?.name || 'Torneo Oficial'}
+            checkInClosesAt={(checkInPendingParticipation.tournaments as any)?.check_in_closes_at}
+            initialCheckedInAt={checkInPendingParticipation.checked_in_at}
+          />
+        )}
+
         {/* Priority Banner: Pending Match Validations (Dual-Check) */}
         {pendingValidations.length > 0 && (
           <PendingMatchValidations matches={pendingValidations} currentUserId={profile.id} />

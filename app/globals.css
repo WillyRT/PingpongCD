@@ -87,3 +87,77 @@ body {
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
 }
+
+/* ==========================================================
+   MODO EXTERIOR / SUNLIGHT MODE (ALTO CONTRASTE BAJO EL SOL)
+   ========================================================== */
+.tabular-nums,
+[data-tabular-nums] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.sunlight-mode {
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #f8fafc;
+  --card-foreground: #000000;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #000000;
+  --muted: #f1f5f9;
+  --muted-foreground: #000000;
+  --border: #000000;
+  --primary: #1d4ed8;
+  --primary-foreground: #ffffff;
+  --ring: #000000;
+}
+
+.sunlight-mode body {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+.sunlight-mode main,
+.sunlight-mode section {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+.sunlight-mode header {
+  background-color: #ffffff !important;
+  border-bottom: 2px solid #000000 !important;
+}
+
+/* Hard contrast card borders and typography */
+.sunlight-mode .rounded-2xl,
+.sunlight-mode .rounded-xl {
+  border-color: #000000 !important;
+  border-width: 2px !important;
+}
+
+.sunlight-mode .text-\[var\(--muted-foreground\)\] {
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+.sunlight-mode .text-gray-300,
+.sunlight-mode .text-gray-400,
+.sunlight-mode .text-slate-400 {
+  color: #111827 !important;
+  font-weight: 600 !important;
+}
+
+.sunlight-mode .bg-\[var\(--card\)\] {
+  background-color: #f8fafc !important;
+  color: #000000 !important;
+}
+
+.sunlight-mode .bg-\[var\(--secondary\)\] {
+  background-color: #e2e8f0 !important;
+  color: #000000 !important;
+}
+
+.sunlight-mode .bg-black\/75,
+.sunlight-mode .bg-black\/50 {
+  background-color: rgba(0, 0, 0, 0.85) !important;
+}

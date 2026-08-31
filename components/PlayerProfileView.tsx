@@ -1,8 +1,9 @@
-﻿'use client';
+'use client';
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { getCategoryLabel } from '@/lib/engine/categories';
+import { updatePlayerMaterialAction } from '@/lib/actions/admin';
 import type { ProfileRow } from '@/lib/types/database';
 import type { AgeCategory } from '@/lib/types/domain';
 
@@ -55,6 +56,26 @@ export function PlayerProfileView({
   const [selectedTournament, setSelectedTournament] = useState<string>('all');
   const [filterResult, setFilterResult] = useState<'all' | 'win' | 'loss'>('all');
   const [searchRival, setSearchRival] = useState('');
+
+  // Informative Material Badges State
+  const [gripStyle, setGripStyle] = useState<'shakehand' | 'penhold' | null>(profile.grip_style || null);
+  const [rubberType, setRubberType] = useState<string>(profile.rubber_type || '');
+  const [showMaterialModal, setShowMaterialModal] = useState(false);
+  const [materialSaving, setMaterialSaving] = useState(false);
+
+  const handleSaveMaterial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMaterialSaving(true);
+    try {
+      await updatePlayerMaterialAction({
+        gripStyle,
+        rubberType: rubberType.trim() || null,
+      });
+      setShowMaterialModal(false);
+    } finally {
+      setMaterialSaving(false);
+    }
+  };
 
   const displayName = profile.nickname || profile.name || 'Jugador';
   const playerRating = Math.round(profile.rating ?? 1500);
@@ -213,10 +234,32 @@ export function PlayerProfileView({
                 )}
               </div>
 
-              <div className="text-xs text-[var(--muted-foreground)] flex flex-wrap items-center gap-2.5">
+              <div className="text-xs text-[var(--muted-foreground)] flex flex-wrap items-center gap-2 mt-1">
                 <span className="font-semibold text-white px-2 py-0.5 rounded bg-[var(--secondary)]">
                   {profile.category ? getCategoryLabel(profile.category as AgeCategory) : 'Categoría General'}
                 </span>
+
+                {/* Material Badges (Informative only) */}
+                {gripStyle && (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    {gripStyle === 'penhold' ? '🥢 Lapicero (Penhold)' : '🏓 Clásica (Shakehand)'}
+                  </span>
+                )}
+                {rubberType && (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    Gomas: {rubberType}
+                  </span>
+                )}
+                {isOwnProfile && (
+                  <button
+                    type="button"
+                    onClick={() => setShowMaterialModal(true)}
+                    className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--border)] hover:border-amber-400 transition"
+                  >
+                    ⚙️ Mi Material
+                  </button>
+                )}
+
                 <span>•</span>
                 <span>{stats.tournamentsCount} {stats.tournamentsCount === 1 ? 'Torneo disputado' : 'Torneos disputados'}</span>
                 {isOwnProfile && profile.email && (
@@ -511,6 +554,94 @@ export function PlayerProfileView({
                 </Link>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Material Edit Modal */}
+      {showMaterialModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[var(--card)] border-2 border-[var(--border)] rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4 animate-scale-up text-left">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <div>
+                <h4 className="font-black text-sm text-[var(--foreground)]">Empuñadura y Material de Pala</h4>
+                <p className="text-[11px] text-[var(--muted-foreground)]">Badge visual para las pantallas del torneo</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMaterialModal(false)}
+                className="w-9 h-9 rounded-xl bg-[var(--secondary)] text-[var(--foreground)] font-bold flex items-center justify-center hover:bg-red-500/20 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveMaterial} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[var(--foreground)] mb-1.5">
+                  Estilo de Empuñadura:
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGripStyle('shakehand')}
+                    className={`p-3 rounded-xl border-2 text-xs font-bold text-center transition ${
+                      gripStyle === 'shakehand'
+                        ? 'bg-blue-600 text-white border-black shadow'
+                        : 'bg-[var(--secondary)] text-[var(--foreground)] border-[var(--border)]'
+                    }`}
+                  >
+                    <span className="text-base block mb-0.5">🏓</span>
+                    Clásica (Shakehand)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGripStyle('penhold')}
+                    className={`p-3 rounded-xl border-2 text-xs font-bold text-center transition ${
+                      gripStyle === 'penhold'
+                        ? 'bg-amber-500 text-black border-black shadow font-black'
+                        : 'bg-[var(--secondary)] text-[var(--foreground)] border-[var(--border)]'
+                    }`}
+                  >
+                    <span className="text-base block mb-0.5">🥢</span>
+                    Lapicero (Penhold)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[var(--foreground)] mb-1">
+                  Tipo de Gomas:
+                </label>
+                <input
+                  type="text"
+                  value={rubberType}
+                  onChange={(e) => setRubberType(e.target.value)}
+                  placeholder="Ej: Lisas (ambas caras) / Picos largos en revés"
+                  className="w-full p-2.5 rounded-xl bg-[var(--secondary)] border-2 border-[var(--border)] text-xs text-[var(--foreground)] focus:outline-none"
+                />
+                <p className="text-[10px] text-[var(--muted-foreground)] mt-1">
+                  * Únicamente informativo para rivales y público. No modifica el algoritmo de rating ELO.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowMaterialModal(false)}
+                  className="px-4 py-2 rounded-xl bg-[var(--secondary)] text-xs font-bold border border-[var(--border)]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={materialSaving}
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow transition disabled:opacity-50"
+                >
+                  {materialSaving ? 'Guardando...' : 'Guardar'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -948,3 +948,61 @@ export async function deleteTournamentAction(tournamentId: string): Promise<Acti
   }
 }
 
+/**
+ * Check-in action for registered participants before draw / groups generation.
+ * Confirms attendance so absent players can be excluded from the draw.
+ */
+export async function checkInParticipantAction(
+  tournamentId: string,
+  targetUserId?: string
+): Promise<ActionResponse<{ checkedInAt: string }>> {
+  try {
+    const supabase = await createClient();
+    const admin = createAdminClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const playerSession = await getPlayerSession();
+
+    const callerId = user?.id || playerSession?.playerId;
+    if (!callerId) {
+      return { success: false, error: 'Se requiere sesión activa para confirmar asistencia' };
+    }
+
+    const userId = targetUserId || callerId;
+
+    // Verify tournament exists and check-in is not closed
+    const { data: tournament, error: tErr } = await admin
+      .from('tournaments')
+      .select('id, name, status, check_in_closes_at')
+      .eq('id', tournamentId)
+      .single();
+
+    if (tErr || !tournament) {
+      return { success: false, error: 'Torneo no encontrado' };
+    }
+
+    if (tournament.check_in_closes_at && new Date() > new Date(tournament.check_in_closes_at)) {
+      return { success: false, error: 'La ventana de check-in para este torneo ya ha cerrado.' };
+    }
+
+    const now = new Date().toISOString();
+
+    const { error: pErr } = await admin
+      .from('tournament_participants')
+      .update({ checked_in_at: now })
+      .eq('tournament_id', tournamentId)
+      .eq('user_id', userId);
+
+    if (pErr) {
+      return { success: false, error: 'Error al registrar check-in' };
+    }
+
+    revalidatePath('/me');
+    revalidatePath(`/join/${tournamentId}`);
+    revalidatePath(`/admin/tournaments/${tournamentId}`);
+
+    return { success: true, data: { checkedInAt: now } };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Error inesperado en check-in' };
+  }
+}
+

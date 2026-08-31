@@ -21,6 +21,8 @@ export interface Profile {
   ratingDeviation: number;
   volatility: number;
   matchesPlayed: number;
+  gripStyle?: 'shakehand' | 'penhold' | null;
+  rubberType?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +35,7 @@ export interface Tournament {
   slug: string;
   status: TournamentStatus;
   hiddenStandings: boolean;
+  checkInClosesAt?: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -73,6 +76,7 @@ export interface TournamentParticipant {
   declaredLevel?: number | null;
   groupId: string | null;
   seedNumber: number | null;
+  checkedInAt?: string | null;
   joinedAt: string;
   // Joined profile data (for display)
   profile?: Profile;
@@ -95,6 +99,9 @@ export interface Match {
   reportedBy: string | null;
   confirmedBy: string | null;
   status: MatchStatus;
+  tableNumber?: number | null;
+  disputeReason?: string | null;
+  disputeEvidenceUrl?: string | null;
   winExpectancyP1?: number | null;
   winExpectancyP2?: number | null;
   isUpset?: boolean;

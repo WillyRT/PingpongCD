@@ -137,6 +137,8 @@ export interface ProfileRow {
   rating_deviation: number;
   volatility: number;
   matches_played: number;
+  grip_style?: 'shakehand' | 'penhold' | null;
+  rubber_type?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -151,6 +153,7 @@ export interface TournamentRow {
   slug: string;
   status: 'draft' | 'registration' | 'group_stage' | 'bracket_stage' | 'finished';
   hidden_standings: boolean;
+  check_in_closes_at?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -199,6 +202,7 @@ export interface TournamentParticipantRow {
   declared_level: number | null;
   group_id: string | null;
   seed_number: number | null;
+  checked_in_at?: string | null;
   joined_at: string;
 }
 
@@ -224,6 +228,7 @@ export interface MatchRow {
   verified_by_id?: string | null;
   table_number?: number | null;
   dispute_reason?: string | null;
+  dispute_evidence_url?: string | null;
   status:
     | 'pending'
     | 'submitted'

@@ -142,6 +142,7 @@ export async function verifyMatchScoreAction(input: {
   matchId: string;
   action: 'confirm' | 'dispute';
   disputeReason?: string;
+  disputeEvidenceUrl?: string;
   overrideScore1?: number;
   overrideScore2?: number;
 }): Promise<ActionResponse> {
@@ -178,7 +179,7 @@ export async function verifyMatchScoreAction(input: {
     if (input.action === 'confirm') {
       // Prevent self-confirmation unless referee/admin
       if (!isPrivileged && !isOpponent) {
-        return { success: false, error: '403 Forbidden: El jugador que reportó no puede auto-confirmar su propio resultado.' };
+        return { success: false, error: '403 Forbidden: El mismo jugador que registró el marcador no puede confirmarlo.' };
       }
 
       // If referee provides overrides
@@ -186,7 +187,7 @@ export async function verifyMatchScoreAction(input: {
       const finalScore2 = input.overrideScore2 ?? match.score_player2;
 
       if (finalScore1 === null || finalScore2 === null) {
-        return { success: false, error: 'El partido no tiene un tanteo registrado para confirmar.' };
+        return { success: false, error: 'No hay puntuaciones registradas para confirmar' };
       }
 
       return await finalizeAndConfirmMatch(admin, match, finalScore1, finalScore2, callerId, isPrivileged);
@@ -199,12 +200,14 @@ export async function verifyMatchScoreAction(input: {
       }
 
       const reason = input.disputeReason?.trim() || 'Marcador impugnado por desacuerdo en el tanteo.';
+      const evidenceUrl = input.disputeEvidenceUrl?.trim() || null;
 
       await admin
         .from('matches')
         .update({
           status: 'disputed',
           dispute_reason: reason,
+          dispute_evidence_url: evidenceUrl,
           updated_at: new Date().toISOString(),
         })
         .eq('id', input.matchId);
@@ -215,7 +218,7 @@ export async function verifyMatchScoreAction(input: {
         entity_type: 'matches',
         entity_id: input.matchId,
         previous_data: { status: match.status },
-        new_data: { status: 'disputed', dispute_reason: reason },
+        new_data: { status: 'disputed', dispute_reason: reason, dispute_evidence_url: evidenceUrl },
       });
 
       revalidatePath('/player');
@@ -388,8 +391,12 @@ export async function confirmMatchAction(matchId: string): Promise<ActionRespons
 }
 
 /** Dispute match score action (calls verifyMatchScoreAction with 'dispute') */
-export async function disputeMatchAction(matchId: string, notes?: string): Promise<ActionResponse> {
-  return verifyMatchScoreAction({ matchId, action: 'dispute', disputeReason: notes });
+export async function disputeMatchAction(
+  matchId: string,
+  notes?: string,
+  disputeEvidenceUrl?: string
+): Promise<ActionResponse> {
+  return verifyMatchScoreAction({ matchId, action: 'dispute', disputeReason: notes, disputeEvidenceUrl });
 }
 
 /** Official Action Aliases for Dual-Check Verification */

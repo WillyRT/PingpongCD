@@ -34,6 +34,7 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
   const [showReportModal, setShowReportModal] = useState(false);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [disputeReason, setDisputeReason] = useState('');
+  const [disputeEvidenceUrl, setDisputeEvidenceUrl] = useState('');
   const [score1, setScore1] = useState(7);
   const [score2, setScore2] = useState(5);
   const [loading, setLoading] = useState(false);
@@ -102,7 +103,8 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
     try {
       const res = await disputeMatchScoreAction(
         match.id,
-        disputeReason.trim() || 'Desacuerdo con el tanteo reportado por el rival.'
+        disputeReason.trim() || 'Desacuerdo con el tanteo reportado por el rival.',
+        disputeEvidenceUrl.trim() || undefined
       );
 
       if (!res.success) {
@@ -243,63 +245,135 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
         )}
       </div>
 
-      {/* Report Score Modal */}
+      {/* Report Score Modal with Tactile >=64px controls & Common Presets */}
       {showReportModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-scale-up">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[var(--card)] border-2 border-[var(--border)] rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4 animate-scale-up text-left">
             <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
-              <h4 className="font-extrabold text-sm text-white">Anotar Resultado de Partido</h4>
+              <div>
+                <h4 className="font-black text-base text-[var(--foreground)]">Anotador Rápido de Acta</h4>
+                <p className="text-[11px] text-[var(--muted-foreground)]">Diseñado para juego exterior bajo luz solar directa</p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowReportModal(false)}
-                className="text-[var(--muted-foreground)] hover:text-white font-bold"
+                className="w-10 h-10 rounded-xl bg-[var(--secondary)] text-[var(--foreground)] font-black text-lg flex items-center justify-center hover:bg-red-500/20 hover:text-red-400 transition"
               >
                 ✕
               </button>
             </div>
 
+            {/* Common Table Tennis Presets */}
+            <div>
+              <span className="block text-[10px] font-black uppercase tracking-wider text-[var(--muted-foreground)] mb-1.5">
+                ⚡ Tanteos Frecuentes (1 toque)
+              </span>
+              <div className="grid grid-cols-4 gap-1.5">
+                {([
+                  [11, 9],
+                  [11, 8],
+                  [11, 7],
+                  [11, 5],
+                  [9, 11],
+                  [8, 11],
+                  [7, 11],
+                  [5, 11],
+                  [7, 5],
+                  [7, 4],
+                  [5, 7],
+                  [4, 7],
+                ] as [number, number][]).map(([s1, s2]) => (
+                  <button
+                    key={`${s1}-${s2}`}
+                    type="button"
+                    onClick={() => {
+                      setScore1(s1);
+                      setScore2(s2);
+                    }}
+                    className={`py-2 rounded-xl border text-xs font-black tabular-nums transition ${
+                      score1 === s1 && score2 === s2
+                        ? 'bg-[var(--primary)] text-white border-black shadow'
+                        : 'bg-[var(--secondary)] text-[var(--foreground)] border-[var(--border)] hover:border-[var(--primary)]'
+                    }`}
+                  >
+                    {s1} - {s2}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <form onSubmit={handleReport} className="space-y-4">
-              <div className="space-y-3 p-3 rounded-xl bg-[var(--secondary)]">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold">{match.player1Name}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="99"
-                    required
-                    value={score1}
-                    onChange={(e) => setScore1(parseInt(e.target.value) || 0)}
-                    className="w-16 text-center font-mono font-bold text-lg py-1 px-2 rounded-lg bg-[var(--card)] border border-[var(--border)]"
-                  />
+              {/* Tactile 64px Height Players Scoring Controls */}
+              <div className="space-y-3 p-3 rounded-2xl bg-[var(--secondary)] border-2 border-[var(--border)]">
+                {/* Player 1 Row */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 truncate">
+                    <span className="text-xs font-black block truncate">{match.player1Name}</span>
+                    <span className="text-[10px] text-[var(--muted-foreground)]">Jugador 1</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setScore1((prev) => Math.max(0, prev - 1))}
+                      className="min-h-[64px] min-w-[56px] rounded-xl bg-[var(--card)] border-2 border-[var(--border)] text-2xl font-black flex items-center justify-center active:scale-95 transition"
+                    >
+                      -
+                    </button>
+                    <span className="min-h-[64px] min-w-[64px] px-2 rounded-xl bg-[var(--card)] border-2 border-[var(--border)] font-black text-3xl tabular-nums flex items-center justify-center">
+                      {score1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setScore1((prev) => prev + 1)}
+                      className="min-h-[64px] min-w-[56px] rounded-xl bg-[var(--card)] border-2 border-[var(--border)] text-2xl font-black flex items-center justify-center active:scale-95 transition"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold">{match.player2Name}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="99"
-                    required
-                    value={score2}
-                    onChange={(e) => setScore2(parseInt(e.target.value) || 0)}
-                    className="w-16 text-center font-mono font-bold text-lg py-1 px-2 rounded-lg bg-[var(--card)] border border-[var(--border)]"
-                  />
+
+                {/* Player 2 Row */}
+                <div className="flex items-center justify-between gap-3 pt-2 border-t border-[var(--border)]">
+                  <div className="flex-1 truncate">
+                    <span className="text-xs font-black block truncate">{match.player2Name}</span>
+                    <span className="text-[10px] text-[var(--muted-foreground)]">Jugador 2</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setScore2((prev) => Math.max(0, prev - 1))}
+                      className="min-h-[64px] min-w-[56px] rounded-xl bg-[var(--card)] border-2 border-[var(--border)] text-2xl font-black flex items-center justify-center active:scale-95 transition"
+                    >
+                      -
+                    </button>
+                    <span className="min-h-[64px] min-w-[64px] px-2 rounded-xl bg-[var(--card)] border-2 border-[var(--border)] font-black text-3xl tabular-nums flex items-center justify-center">
+                      {score2}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setScore2((prev) => prev + 1)}
+                      className="min-h-[64px] min-w-[56px] rounded-xl bg-[var(--card)] border-2 border-[var(--border)] text-2xl font-black flex items-center justify-center active:scale-95 transition"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => setShowReportModal(false)}
-                  className="px-3.5 py-2 rounded-xl bg-[var(--secondary)] text-xs font-semibold"
+                  className="px-4 py-3 rounded-xl bg-[var(--secondary)] text-xs font-bold border border-[var(--border)]"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 rounded-xl gradient-primary text-white text-xs font-bold shadow hover:opacity-90 disabled:opacity-50"
+                  className="min-h-[50px] px-6 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-black shadow-lg hover:opacity-95 disabled:opacity-50 transition flex items-center gap-2"
                 >
-                  {loading ? 'Enviando...' : 'Enviar Marcador'}
+                  {loading ? 'Enviando...' : '✓ Confirmar y Enviar Acta'}
                 </button>
               </div>
             </form>
@@ -307,16 +381,21 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
         </div>
       )}
 
-      {/* Dispute Modal */}
+      {/* Dispute Modal with Photo Evidence Option */}
       {showDisputeModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[var(--card)] border border-red-500/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-scale-up">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[var(--card)] border-2 border-red-500/40 rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4 animate-scale-up text-left">
             <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
-              <h4 className="font-extrabold text-sm text-red-400">Impugnar Marcador</h4>
+              <div>
+                <h4 className="font-black text-base text-red-400">Impugnar Marcador</h4>
+                <p className="text-[11px] text-[var(--muted-foreground)]">
+                  La mesa arbitral examinará las actas y evidencias aportadas
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowDisputeModal(false)}
-                className="text-[var(--muted-foreground)] hover:text-white font-bold"
+                className="w-10 h-10 rounded-xl bg-[var(--secondary)] text-[var(--foreground)] font-black text-lg flex items-center justify-center hover:bg-red-500/20 hover:text-red-400 transition"
               >
                 ✕
               </button>
@@ -324,33 +403,49 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
 
             <form onSubmit={handleDispute} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1">
-                  Motivo de la impugnación
+                <label className="block text-xs font-bold text-[var(--foreground)] mb-1">
+                  Motivo de la discrepancia:
                 </label>
                 <textarea
                   rows={3}
                   required
                   value={disputeReason}
                   onChange={(e) => setDisputeReason(e.target.value)}
-                  placeholder="Ej: El tanteo real fue 7-5 a mi favor, no 5-7."
-                  className="w-full p-2.5 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-xs focus:outline-none focus:border-red-500"
+                  placeholder="Ej: El marcador real fue 11-8 a mi favor en el set decisivo."
+                  className="w-full p-3 rounded-xl bg-[var(--secondary)] border-2 border-[var(--border)] text-xs text-[var(--foreground)] focus:outline-none focus:border-red-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[var(--foreground)] mb-1">
+                  📷 Enlace o Foto de Evidencia (opcional):
+                </label>
+                <input
+                  type="url"
+                  value={disputeEvidenceUrl}
+                  onChange={(e) => setDisputeEvidenceUrl(e.target.value)}
+                  placeholder="https://ejemplo.com/foto-marcador.jpg"
+                  className="w-full p-2.5 rounded-xl bg-[var(--secondary)] border-2 border-[var(--border)] text-xs text-[var(--foreground)] focus:outline-none focus:border-red-500"
+                />
+                <p className="text-[10px] text-[var(--muted-foreground)] mt-1">
+                  Foto del marcador de mesa o papel de acta para mediación inmediata del árbitro.
+                </p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowDisputeModal(false)}
-                  className="px-3.5 py-2 rounded-xl bg-[var(--secondary)] text-xs font-semibold"
+                  className="px-4 py-2.5 rounded-xl bg-[var(--secondary)] text-xs font-bold border border-[var(--border)]"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={loading || !disputeReason.trim()}
-                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black shadow-lg disabled:opacity-50 transition"
                 >
-                  {loading ? 'Enviando...' : 'Confirmar Impugnación'}
+                  {loading ? 'Impugnando...' : '⚠️ Registrar Impugnación'}
                 </button>
               </div>
             </form>
