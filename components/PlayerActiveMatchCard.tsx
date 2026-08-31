@@ -303,18 +303,20 @@ export function PlayerActiveMatchCard({ match, currentUserId }: PlayerActiveMatc
               </span>
               <div className="grid grid-cols-4 gap-1.5">
                 {([
-                  [11, 9],
                   [11, 8],
+                  [11, 9],
                   [11, 7],
+                  [11, 6],
                   [11, 5],
-                  [9, 11],
+                  [11, 4],
+                  [12, 10],
                   [8, 11],
+                  [9, 11],
                   [7, 11],
+                  [6, 11],
                   [5, 11],
-                  [7, 5],
-                  [7, 4],
-                  [5, 7],
-                  [4, 7],
+                  [4, 11],
+                  [10, 12],
                 ] as [number, number][]).map(([s1, s2]) => (
                   <button
                     key={`${s1}-${s2}`}

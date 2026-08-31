@@ -16,7 +16,7 @@ export const PLAYER_SESSION_COOKIE_OPTIONS = {
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax' as const,
   path: '/',
-  maxAge: 60 * 60 * 24 * 7, // 7 days
+  maxAge: 60 * 60 * 24 * 30, // 30 days
 };
 
 let ephemeralSecret: string | null = null;
@@ -140,7 +140,7 @@ export async function computeSignature(data: string, secret = getSigningSecret()
  */
 export async function createPlayerSessionToken(
   data: { playerId: string; email: string; tournamentId?: string; issuedAt?: number },
-  expiresInSeconds: number = 60 * 60 * 24 * 7 // 7 days
+  expiresInSeconds: number = 60 * 60 * 24 * 30 // 30 days
 ): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const exp = now + expiresInSeconds;
@@ -211,17 +211,20 @@ export async function verifyPlayerSessionToken(
 
 /**
  * Sets the signed session cookie in HTTP response headers.
- * Uses strict cookie flags: httpOnly: true, secure in production, sameSite: 'lax', 7-day maxAge.
+ * Uses strict cookie flags: httpOnly: true, secure in production, sameSite: 'lax', 30-day maxAge.
  */
 export async function setPlayerSessionCookie(
   data: { playerId: string; email: string; tournamentId?: string; issuedAt?: number },
-  expiresInSeconds: number = 60 * 60 * 24 * 7 // 7 days
+  expiresInSeconds: number = 60 * 60 * 24 * 30 // 30 days
 ): Promise<string> {
   const token = await createPlayerSessionToken(data, expiresInSeconds);
   const cookieStore = await cookies();
 
   cookieStore.set(PLAYER_SESSION_COOKIE, token, {
-    ...PLAYER_SESSION_COOKIE_OPTIONS,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
     maxAge: expiresInSeconds,
   });
 

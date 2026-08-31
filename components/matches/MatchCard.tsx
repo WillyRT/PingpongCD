@@ -27,10 +27,15 @@ export function MatchCard({ match, currentUserId, isAdmin = false }: MatchCardPr
   const p2Name = match.player2?.name || (isPlayer2 ? 'You' : 'Player 2');
 
   const statusBadges: Record<string, { label: string; bg: string }> = {
-    pending: { label: 'Pending', bg: 'bg-gray-500/20 text-gray-400' },
-    submitted: { label: 'Awaiting Confirmation', bg: 'bg-amber-500/20 text-amber-400' },
-    confirmed: { label: 'Confirmed', bg: 'bg-green-500/20 text-green-400' },
-    disputed: { label: 'Disputed', bg: 'bg-red-500/20 text-red-400' },
+    pending: { label: '⚪ PENDIENTE', bg: 'bg-neutral-500/20 text-neutral-400 border border-neutral-500/30' },
+    scheduled: { label: '⏳ CALENTANDO', bg: 'bg-amber-500/20 text-amber-500 border border-amber-500/40' },
+    calling: { label: '⏳ CALENTANDO', bg: 'bg-amber-500/20 text-amber-500 border border-amber-500/40' },
+    in_progress: { label: '🟢 EN PISTA', bg: 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40' },
+    submitted: { label: '🟡 PENDIENTE CONFIRMACIÓN', bg: 'bg-amber-500/20 text-amber-500 border border-amber-500/40' },
+    pending_verification: { label: '🟡 PENDIENTE CONFIRMACIÓN', bg: 'bg-amber-500/20 text-amber-500 border border-amber-500/40' },
+    confirmed: { label: '🟢 FINALIZADO', bg: 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40' },
+    completed: { label: '🟢 FINALIZADO', bg: 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40' },
+    disputed: { label: '🔴 EN DISPUTA', bg: 'bg-red-500/20 text-red-500 border border-red-500/40' },
   };
 
   const badge = statusBadges[match.status] ?? statusBadges.pending!;
@@ -56,67 +61,81 @@ export function MatchCard({ match, currentUserId, isAdmin = false }: MatchCardPr
   };
 
   return (
-    <div className="p-4 rounded-xl bg-[var(--card)] border border-[var(--border)] space-y-3">
+    <div className="p-4 rounded-2xl bg-[var(--card)] border border-[var(--border)] space-y-3 shadow-sm hover:border-[var(--border)]/80 transition-all flex flex-col justify-between">
       {/* Header */}
-      <div className="flex items-center justify-between text-xs">
+      <div className="flex items-center justify-between text-xs pb-1 border-b border-[var(--border)]">
         <div className="flex items-center gap-2">
-          <span className="font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+          <span className="font-extrabold uppercase tracking-wider text-[var(--muted-foreground)]">
             {match.stage.replace('_', ' ')}
           </span>
           {match.is_upset && (
-            <span className="px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-400 text-[10px] flex items-center gap-1 border border-amber-500/30">
+            <span className="px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-500 text-[10px] flex items-center gap-1 border border-amber-500/30">
               🔥 Sorpresa de la jornada
             </span>
           )}
         </div>
-        <span className={`px-2.5 py-0.5 rounded-full font-medium ${badge.bg}`}>
+        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${badge.bg}`}>
           {badge.label}
         </span>
       </div>
 
-      {/* Players & Scores */}
-      <div className="flex items-center justify-between">
-        <div className="flex-1 space-y-2">
-          <div className="flex items-center justify-between pr-4">
-            <div className="flex items-center gap-2">
-              <span className={`font-medium ${match.winner_id === match.player1_id ? 'text-[var(--accent)] font-bold' : ''}`}>
-                {p1Name}
-              </span>
-              {hasWinExpectancy && (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-[var(--secondary)] text-[var(--muted-foreground)]">
-                  {pct1}%
-                </span>
-              )}
-            </div>
-            {match.score_player1 !== null && (
-              <span className="font-mono text-lg font-bold">
-                {match.score_player1}
-              </span>
-            )}
+      {/* Players & Large Tabular Scores */}
+      <div className="space-y-2 py-1">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <span className={`block truncate text-sm ${match.winner_id === match.player1_id ? 'font-black text-blue-500' : 'font-bold text-[var(--foreground)]'}`}>
+              {p1Name}
+            </span>
           </div>
+          {match.score_player1 !== null ? (
+            <span className="font-black text-2xl tabular-nums px-2 py-0.5 rounded-lg bg-[var(--secondary)] border border-[var(--border)]">
+              {match.score_player1}
+            </span>
+          ) : (
+            <span className="text-xs text-[var(--muted-foreground)] font-bold">—</span>
+          )}
+        </div>
 
-          <div className="flex items-center justify-between pr-4">
-            <div className="flex items-center gap-2">
-              <span className={`font-medium ${match.winner_id === match.player2_id ? 'text-[var(--accent)] font-bold' : ''}`}>
-                {p2Name}
-              </span>
-              {hasWinExpectancy && (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-[var(--secondary)] text-[var(--muted-foreground)]">
-                  {pct2}%
-                </span>
-              )}
-            </div>
-            {match.score_player2 !== null && (
-              <span className="font-mono text-lg font-bold">
-                {match.score_player2}
-              </span>
-            )}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <span className={`block truncate text-sm ${match.winner_id === match.player2_id ? 'font-black text-blue-500' : 'font-bold text-[var(--foreground)]'}`}>
+              {p2Name}
+            </span>
           </div>
+          {match.score_player2 !== null ? (
+            <span className="font-black text-2xl tabular-nums px-2 py-0.5 rounded-lg bg-[var(--secondary)] border border-[var(--border)]">
+              {match.score_player2}
+            </span>
+          ) : (
+            <span className="text-xs text-[var(--muted-foreground)] font-bold">—</span>
+          )}
         </div>
       </div>
 
+      {/* Fine Bradley-Terry Win Expectancy Bar at the base */}
+      {hasWinExpectancy && (
+        <div className="space-y-1 pt-1">
+          <div className="flex justify-between text-[10px] font-mono font-bold text-[var(--muted-foreground)] tabular-nums">
+            <span>{pct1}% probabilidad</span>
+            <span>{pct2}% probabilidad</span>
+          </div>
+          <div className="h-1.5 w-full bg-[var(--secondary)] rounded-full overflow-hidden flex">
+            <div
+              style={{ width: `${pct1}%` }}
+              className="bg-blue-600 h-full transition-all duration-500"
+              title={`${p1Name}: ${pct1}%`}
+            />
+            <div
+              style={{ width: `${pct2}%` }}
+              className="bg-indigo-500 h-full transition-all duration-500"
+              title={`${p2Name}: ${pct2}%`}
+            />
+          </div>
+        </div>
+      )}
+
       {error && (
-        <div className="text-xs text-[var(--destructive)] bg-[var(--destructive)]/10 p-2 rounded-lg">
+        <div className="text-xs text-[var(--destructive)] bg-[var(--destructive)]/10 p-2 rounded-lg font-bold">
           {error}
         </div>
       )}

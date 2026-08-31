@@ -61,12 +61,12 @@ describe('Player Session Verification & Cookie Hardening Suite', () => {
   });
 
   describe('2. Flags Estrictos en tourneymaster_session Cookie', () => {
-    it('enforces httpOnly: true, sameSite: lax, path: /, and 7-day maxAge', () => {
+    it('enforces httpOnly: true, sameSite: lax, path: /, and 30-day maxAge', () => {
       expect(PLAYER_SESSION_COOKIE).toBe('tourneymaster_session');
       expect(PLAYER_SESSION_COOKIE_OPTIONS.httpOnly).toBe(true);
       expect(PLAYER_SESSION_COOKIE_OPTIONS.sameSite).toBe('lax');
       expect(PLAYER_SESSION_COOKIE_OPTIONS.path).toBe('/');
-      expect(PLAYER_SESSION_COOKIE_OPTIONS.maxAge).toBe(60 * 60 * 24 * 7); // 7 days = 604,800s
+      expect(PLAYER_SESSION_COOKIE_OPTIONS.maxAge).toBe(60 * 60 * 24 * 30); // 30 days = 2,592,000s
     });
 
     it('evaluates secure flag based on NODE_ENV === production', () => {
@@ -77,7 +77,7 @@ describe('Player Session Verification & Cookie Hardening Suite', () => {
       expect(typeof PLAYER_SESSION_COOKIE_OPTIONS.secure).toBe('boolean');
     });
 
-    it('includes issuedAt (iat) and 7-day expiration (exp) in session payload', async () => {
+    it('includes issuedAt (iat) and 30-day expiration (exp) in session payload', async () => {
       const now = Math.floor(Date.now() / 1000);
       const token = await createPlayerSessionToken({
         playerId: 'player-uuid-1',
@@ -92,7 +92,7 @@ describe('Player Session Verification & Cookie Hardening Suite', () => {
       expect(payload?.tournamentId).toBe('tourney-uuid-9');
       expect(payload?.issuedAt).toBeDefined();
       expect(payload?.issuedAt).toBeGreaterThanOrEqual(now - 2);
-      expect(payload?.exp).toBe((payload?.issuedAt ?? now) + 60 * 60 * 24 * 7);
+      expect(payload?.exp).toBe((payload?.issuedAt ?? now) + 60 * 60 * 24 * 30);
     });
   });
 

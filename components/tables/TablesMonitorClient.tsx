@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { dispatchStationTables, type TableDispatchState } from '@/lib/engine/tables';
+import { useRealtimeMatches } from '@/lib/hooks/useRealtimeMatches';
 import type { TournamentRow, TournamentGroupRow, MatchRow } from '@/lib/types/database';
 
 interface PlayerInfo {
@@ -32,9 +33,10 @@ export function TablesMonitorClient({
   tournament,
   allTournaments,
   groups,
-  matches,
+  matches: initialMatches,
 }: TablesMonitorClientProps) {
   const router = useRouter();
+  const matches = useRealtimeMatches(tournament?.id || '', initialMatches);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [currentTime, setCurrentTime] = useState<string>('');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -209,34 +211,35 @@ export function TablesMonitorClient({
                   </div>
                 </div>
 
-                {/* Status Indicator */}
+                {/* Accessible Status Indicator (Icon + Text + Color) */}
                 <div className="flex items-center gap-2">
-                  <span className="relative flex h-3.5 w-3.5">
-                    {!table.isIdle && (
-                      <span
-                        className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                          table.statusLight === 'red'
-                            ? 'bg-red-400'
-                            : table.statusLight === 'yellow'
-                            ? 'bg-yellow-400'
-                            : 'bg-blue-400'
-                        }`}
-                      />
-                    )}
-                    <span
-                      className={`relative inline-flex rounded-full h-3.5 w-3.5 ${
-                        table.isIdle
-                          ? 'bg-green-500'
-                          : table.statusLight === 'red'
-                          ? 'bg-red-500'
-                          : table.statusLight === 'yellow'
-                          ? 'bg-yellow-500'
-                          : 'bg-blue-500'
-                      }`}
-                    />
-                  </span>
-                  <span className="text-xs font-black uppercase tracking-wider">
-                    {table.statusLabel}
+                  <span className={`px-2.5 py-1 rounded-xl text-xs font-black uppercase tracking-wider border flex items-center gap-1.5 shadow-sm ${
+                    table.isIdle
+                      ? 'bg-neutral-500/15 text-neutral-500 border-neutral-500/30'
+                      : table.statusLight === 'red'
+                      ? 'bg-red-500/20 text-red-500 border-red-500/40'
+                      : table.statusLight === 'yellow'
+                      ? 'bg-amber-500/20 text-amber-500 border-amber-500/40'
+                      : 'bg-emerald-500/20 text-emerald-600 border-emerald-500/40'
+                  }`}>
+                    <span>
+                      {table.isIdle
+                        ? '⚪'
+                        : table.statusLight === 'red'
+                        ? '🔴'
+                        : table.statusLight === 'yellow'
+                        ? '⏳'
+                        : '🟢'}
+                    </span>
+                    <span>
+                      {table.isIdle
+                        ? 'DISPONIBLE'
+                        : table.statusLight === 'red'
+                        ? 'EN DISPUTA'
+                        : table.statusLight === 'yellow'
+                        ? 'CALENTANDO'
+                        : 'EN PISTA'}
+                    </span>
                   </span>
                 </div>
               </div>

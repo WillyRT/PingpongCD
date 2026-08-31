@@ -10,30 +10,14 @@ interface HomeClientProps {
 }
 
 export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientProps) {
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'finished'>('all');
-
-  const filteredTournaments = initialTournaments.filter((t) => {
-    const matchesSearch =
-      t.name.toLowerCase().includes(search.toLowerCase()) ||
-      t.slug.toLowerCase().includes(search.toLowerCase());
-
-    if (!matchesSearch) return false;
-
-    if (statusFilter === 'active') {
-      return t.status !== 'finished';
-    }
-    if (statusFilter === 'finished') {
-      return t.status === 'finished';
-    }
-    return true;
-  });
-
   const statusLabels: Record<string, { label: string; color: string }> = {
     draft: { label: 'Borrador', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
     registration: { label: 'Inscripciones Abiertas', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
+    registration_open: { label: 'Inscripciones Abiertas', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
     group_stage: { label: 'Fase de Grupos en Vivo', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
     bracket_stage: { label: 'Playoffs / Cuadro Final', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+    in_progress: { label: 'En Juego', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+    live: { label: 'En Directo', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
     finished: { label: 'Finalizado', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
   };
 
@@ -44,21 +28,21 @@ export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientPr
         {/* ACTION 1: VER TORNEOS ACTIVOS */}
         <div className="rounded-2xl bg-[var(--card)] border border-[var(--border)] p-6 flex flex-col justify-between shadow-lg hover:border-[var(--primary)]/50 transition-all group">
           <div className="space-y-3">
-            <div className="w-12 h-12 rounded-xl gradient-primary text-white flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition-transform">
+            <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition-transform">
               🏆
             </div>
-            <h2 className="text-xl font-black">Ver Torneos Activos</h2>
+            <h2 className="text-xl font-black">Torneo Activo</h2>
             <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
-              Consulta los cuadros oficiales, fases de grupos en vivo y actas de todas las ediciones del circuito.
+              Consulta los cuadros oficiales, fases de grupos en vivo y actas de las mesas de juego.
             </p>
           </div>
 
           <div className="pt-6">
             <a
-              href="#torneos-circuito"
-              className="w-full py-3 rounded-xl gradient-primary text-white text-xs font-bold shadow transition flex items-center justify-center gap-2 hover:opacity-95"
+              href="#torneos-activos"
+              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow transition flex items-center justify-center gap-2"
             >
-              <span>Explorar Torneos</span>
+              <span>Ver Competición en Curso</span>
               <span>↓</span>
             </a>
           </div>
@@ -90,7 +74,7 @@ export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientPr
         {/* ACTION 3: MI PORTAL DE JUGADOR */}
         <div className="rounded-2xl bg-[var(--card)] border border-[var(--border)] p-6 flex flex-col justify-between shadow-lg hover:border-blue-500/50 transition-all group">
           <div className="space-y-3">
-            <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition-transform">
+            <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition-transform">
               👤
             </div>
             <h2 className="text-xl font-black">Mi Portal de Jugador</h2>
@@ -102,7 +86,7 @@ export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientPr
           <div className="pt-6">
             <Link
               href="/me"
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow transition flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow transition flex items-center justify-center gap-2"
             >
               <span>Acceder a Mi Portal</span>
               <span>→</span>
@@ -136,84 +120,49 @@ export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientPr
         )}
       </section>
 
-      {/* Active Tournaments Showcase */}
-      <section id="torneos-circuito" className="space-y-4 pt-4 scroll-mt-20">
+      {/* Active Tournaments Section */}
+      <section id="torneos-activos" className="space-y-4 pt-4 scroll-mt-20">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-black">🏆 Torneos del Circuito</h2>
+            <h2 className="text-2xl font-black text-[var(--foreground)]">🏆 Torneos en Curso</h2>
             <p className="text-xs text-[var(--muted-foreground)]">
-              Torneos oficiales con seguimiento en tiempo real y acta electrónica.
+              Competiciones activas del Circuito Ciudad Ducal con actas y marcadores oficiales.
             </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            {/* Filter buttons */}
-            <div className="flex items-center rounded-xl bg-[var(--secondary)] p-1 border border-[var(--border)] text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('all')}
-                className={`px-3 py-1.5 rounded-lg transition ${
-                  statusFilter === 'all' ? 'bg-[var(--primary)] text-white shadow' : 'text-[var(--muted-foreground)] hover:text-white'
-                }`}
-              >
-                Todos
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('active')}
-                className={`px-3 py-1.5 rounded-lg transition ${
-                  statusFilter === 'active' ? 'bg-[var(--primary)] text-white shadow' : 'text-[var(--muted-foreground)] hover:text-white'
-                }`}
-              >
-                En Curso
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('finished')}
-                className={`px-3 py-1.5 rounded-lg transition ${
-                  statusFilter === 'finished' ? 'bg-[var(--primary)] text-white shadow' : 'text-[var(--muted-foreground)] hover:text-white'
-                }`}
-              >
-                Finalizados
-              </button>
-            </div>
-
-            <div className="w-full sm:w-48">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="🔍 Buscar..."
-                className="w-full px-3.5 py-1.5 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-xs focus:outline-none focus:border-[var(--primary)]"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Historical Archive Banner */}
-        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs text-amber-300">
-            <span>📜</span>
-            <span>¿Buscas las clasificaciones y partidos de 2023, 2024, 2025 o 2026?</span>
           </div>
           <Link
             href="/historico"
-            className="text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline shrink-0 flex items-center gap-1"
+            className="text-xs font-bold text-blue-500 hover:underline flex items-center gap-1 shrink-0"
           >
-            <span>Ver Archivo Histórico Completo</span>
+            <span>Ver Histórico de Ediciones Anteriores</span>
             <span>→</span>
           </Link>
         </div>
 
-        {filteredTournaments.length === 0 ? (
-          <div className="p-8 rounded-2xl bg-[var(--card)] border border-[var(--border)] text-center text-xs text-[var(--muted-foreground)]">
-            No se encontraron torneos con el criterio de búsqueda.
+        {initialTournaments.length === 0 ? (
+          <div className="p-8 sm:p-12 rounded-3xl bg-[var(--card)] border-2 border-[var(--border)] text-center space-y-4 shadow-md max-w-xl mx-auto">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-4xl mx-auto border border-amber-500/20">
+              🏓
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-xl font-black text-[var(--foreground)]">No hay torneos en curso</h3>
+              <p className="text-xs sm:text-sm text-[var(--muted-foreground)] leading-relaxed">
+                Las inscripciones para la próxima edición se abrirán próximamente.
+              </p>
+            </div>
+            <div className="pt-2">
+              <Link
+                href="/historico"
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow transition"
+              >
+                <span>Ver palmarés y ediciones anteriores en el Histórico →</span>
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredTournaments.map((t) => {
+            {initialTournaments.map((t) => {
               const st = statusLabels[t.status] || { label: t.status, color: 'bg-gray-500/20 text-gray-300 border-gray-500/30' };
-              const isOpen = t.status === 'registration' || t.status === 'draft';
+              const isOpen = t.status === 'registration' || (t.status as string) === 'registration_open' || t.status === 'draft';
               const isTest = t.name.toLowerCase().includes('prueba') || t.slug.toLowerCase().includes('test');
 
               return (
@@ -238,7 +187,7 @@ export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientPr
                       </span>
                     </div>
 
-                    <h3 className="font-extrabold text-base text-white">{t.name}</h3>
+                    <h3 className="font-extrabold text-base text-[var(--foreground)]">{t.name}</h3>
                     <p className="text-xs text-[var(--muted-foreground)] font-mono">
                       /t/{t.slug}
                     </p>
@@ -248,7 +197,7 @@ export function HomeClient({ initialTournaments, isAdmin = false }: HomeClientPr
                     {isOpen ? (
                       <Link
                         href={`/join/${t.id}`}
-                        className="flex-1 py-2 rounded-xl gradient-primary text-white text-xs font-bold text-center shadow hover:opacity-90 transition"
+                        className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold text-center shadow transition"
                       >
                         Inscribirme
                       </Link>
