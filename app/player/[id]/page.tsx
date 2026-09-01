@@ -38,13 +38,29 @@ export default async function PublicPlayerProfilePage({ params }: PageProps) {
 
   if (!profile) notFound();
 
-  // Current user check for isOwnProfile
+  // Current user check for isOwnProfile and isAdmin
   const { data: { user } } = await supabase.auth.getUser();
   const playerSession = await getPlayerSession();
   const isOwnProfile = Boolean(
     (user && (user.id === profile.id || user.email?.toLowerCase() === profile.email?.toLowerCase())) ||
     (playerSession && (playerSession.playerId === profile.id || playerSession.email?.toLowerCase() === profile.email?.toLowerCase()))
   );
+
+  let isAdmin = false;
+  const viewerEmail = user?.email || playerSession?.email;
+  if (viewerEmail) {
+    const cleanViewerEmail = viewerEmail.toLowerCase().trim();
+    const { data: viewerProfile } = await admin
+      .from('profiles')
+      .select('role, admin_status')
+      .eq('email', cleanViewerEmail)
+      .maybeSingle();
+
+    isAdmin =
+      cleanViewerEmail === 'guillermoriveraterriza@gmail.com' ||
+      viewerProfile?.role === 'super_admin' ||
+      (viewerProfile?.role === 'admin' && viewerProfile?.admin_status === 'approved');
+  }
 
   // Fetch all matches involving this player
   const { data: rawMatches } = await admin
@@ -101,6 +117,7 @@ export default async function PublicPlayerProfilePage({ params }: PageProps) {
         snapshots={rawSnapshots ?? []}
         participations={participations ?? []}
         isOwnProfile={isOwnProfile}
+        isAdmin={isAdmin}
       />
     </main>
   );

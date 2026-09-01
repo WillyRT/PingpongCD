@@ -28,7 +28,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try {
+              if (localStorage.getItem('theme') === 'dark') {
+                document.documentElement.classList.add('dark');
+              } else {
+                document.documentElement.classList.remove('dark');
+              }
+            } catch (e) {}`,
+          }}
+        />
+      </head>
       <body className="min-h-screen bg-[var(--background)] text-[var(--foreground)] antialiased flex flex-col">
         <Navbar />
         <div className="flex-1 pb-16 md:pb-0">{children}</div>

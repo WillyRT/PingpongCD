@@ -19,25 +19,28 @@ interface NavbarClientProps {
 
 export function NavbarClient({ user }: NavbarClientProps) {
   const pathname = usePathname();
-  const [isSunlight, setIsSunlight] = useState(false);
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('theme');
-    if (saved === 'sunlight') {
-      setIsSunlight(true);
-      document.documentElement.classList.add('sunlight-mode');
+    if (saved === 'dark') {
+      setIsDark(true);
+      document.documentElement.classList.add('dark');
+    } else {
+      setIsDark(false);
+      document.documentElement.classList.remove('dark');
     }
   }, []);
 
-  const toggleSunlightMode = () => {
-    const next = !isSunlight;
-    setIsSunlight(next);
-    if (next) {
-      document.documentElement.classList.add('sunlight-mode');
-      localStorage.setItem('theme', 'sunlight');
-    } else {
-      document.documentElement.classList.remove('sunlight-mode');
+  const toggleTheme = () => {
+    const nextDark = !isDark;
+    setIsDark(nextDark);
+    if (nextDark) {
+      document.documentElement.classList.add('dark');
       localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
     }
   };
 
@@ -130,19 +133,15 @@ export function NavbarClient({ user }: NavbarClientProps) {
 
           {/* Controls & User Auth Action Button */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Sunlight Mode Toggle */}
+            {/* Theme Toggle */}
             <button
               type="button"
-              onClick={toggleSunlightMode}
-              title={isSunlight ? 'Cambiar a Modo Oscuro' : 'Activar Modo Sol (Alto Contraste Exterior)'}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition border ${
-                isSunlight
-                  ? 'bg-amber-400 text-black border-black shadow-sm font-black'
-                  : 'bg-[var(--secondary)] text-[var(--foreground)] border-[var(--border)] hover:border-amber-400/50'
-              }`}
+              onClick={toggleTheme}
+              title={isDark ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition border bg-[var(--secondary)] text-[var(--foreground)] border-[var(--border)] hover:border-[var(--primary)]"
             >
-              <span>{isSunlight ? '☀️' : '🌙'}</span>
-              <span className="hidden sm:inline">{isSunlight ? 'Modo Sol' : 'Modo Normal'}</span>
+              <span>{isDark ? '☀️' : '🌙'}</span>
+              <span className="hidden sm:inline">{isDark ? 'Modo Claro' : 'Modo Oscuro'}</span>
             </button>
             {user ? (
               <div className="flex items-center gap-2.5">

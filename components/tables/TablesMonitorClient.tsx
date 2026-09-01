@@ -13,8 +13,6 @@ interface PlayerInfo {
   nickname?: string | null;
   rating?: number | null;
   category?: string | null;
-  grip_style?: 'shakehand' | 'penhold' | null;
-  rubber_type?: string | null;
 }
 
 export interface TableMonitorMatch extends MatchRow {
@@ -27,6 +25,7 @@ interface TablesMonitorClientProps {
   allTournaments: TournamentRow[];
   groups: TournamentGroupRow[];
   matches: TableMonitorMatch[];
+  isRefereeOrAdmin?: boolean;
 }
 
 export function TablesMonitorClient({
@@ -34,6 +33,7 @@ export function TablesMonitorClient({
   allTournaments,
   groups,
   matches: initialMatches,
+  isRefereeOrAdmin = false,
 }: TablesMonitorClientProps) {
   const router = useRouter();
   const matches = useRealtimeMatches(tournament?.id || '', initialMatches);
@@ -166,12 +166,14 @@ export function TablesMonitorClient({
             <span>{isFullscreen ? 'Salir Pantalla' : 'Pantalla Completa'}</span>
           </button>
 
-          <Link
-            href={`/admin/tournaments/${tournament.id}/stations`}
-            className="px-3 py-1.5 rounded-xl bg-[var(--secondary)] border-2 border-[var(--border)] text-xs font-bold hover:bg-[var(--secondary)]/80 transition"
-          >
-            ⚙️ Control Árbitro
-          </Link>
+          {Boolean(isRefereeOrAdmin && tournament) && (
+            <Link
+              href={`/admin/tournaments/${tournament.id}/stations`}
+              className="px-3 py-1.5 rounded-xl bg-[var(--secondary)] border-2 border-[var(--border)] text-xs font-bold hover:bg-[var(--secondary)]/80 transition"
+            >
+              ⚙️ Control Árbitro
+            </Link>
+          )}
         </div>
       </div>
 
@@ -259,16 +261,6 @@ export function TablesMonitorClient({
                           <span className="font-mono font-bold tabular-nums">
                             {Math.round(current.player1?.rating ?? 1500)} ELO
                           </span>
-                          {current.player1?.grip_style && (
-                            <span className="px-1.5 py-0.5 rounded bg-black/40 text-amber-300 font-bold">
-                              {current.player1.grip_style === 'penhold' ? '🥢 Lapicero' : '🏓 Clásica'}
-                            </span>
-                          )}
-                          {current.player1?.rubber_type && (
-                            <span className="px-1.5 py-0.5 rounded bg-black/40 text-blue-300 font-bold">
-                              {current.player1.rubber_type}
-                            </span>
-                          )}
                         </div>
                       </div>
                       <div className="min-w-[48px] h-11 px-2.5 rounded-xl bg-[var(--card)] border-2 border-[var(--border)] font-black text-2xl tabular-nums flex items-center justify-center shadow-inner">
@@ -290,16 +282,6 @@ export function TablesMonitorClient({
                           <span className="font-mono font-bold tabular-nums">
                             {Math.round(current.player2?.rating ?? 1500)} ELO
                           </span>
-                          {current.player2?.grip_style && (
-                            <span className="px-1.5 py-0.5 rounded bg-black/40 text-amber-300 font-bold">
-                              {current.player2.grip_style === 'penhold' ? '🥢 Lapicero' : '🏓 Clásica'}
-                            </span>
-                          )}
-                          {current.player2?.rubber_type && (
-                            <span className="px-1.5 py-0.5 rounded bg-black/40 text-blue-300 font-bold">
-                              {current.player2.rubber_type}
-                            </span>
-                          )}
                         </div>
                       </div>
                       <div className="min-w-[48px] h-11 px-2.5 rounded-xl bg-[var(--card)] border-2 border-[var(--border)] font-black text-2xl tabular-nums flex items-center justify-center shadow-inner">

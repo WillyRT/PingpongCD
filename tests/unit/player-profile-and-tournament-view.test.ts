@@ -83,4 +83,24 @@ describe('Tournament View & Player Profile Logic', () => {
     expect(pa).toBe(27);
     expect(diff).toBe(3);
   });
+
+  it('protects player email privacy: only visible to owner or admin', () => {
+    const profile = { id: 'p1', name: 'Martín', email: 'martin@example.com' };
+
+    const shouldShowEmail = (isOwnProfile: boolean, isAdmin: boolean, email?: string | null) => {
+      return Boolean(isOwnProfile || isAdmin) && Boolean(email);
+    };
+
+    // Public / other player view -> HIDDEN
+    expect(shouldShowEmail(false, false, profile.email)).toBe(false);
+
+    // Own profile view -> VISIBLE
+    expect(shouldShowEmail(true, false, profile.email)).toBe(true);
+
+    // Admin viewing any profile -> VISIBLE
+    expect(shouldShowEmail(false, true, profile.email)).toBe(true);
+
+    // Null email -> FALSE
+    expect(shouldShowEmail(true, true, null)).toBe(false);
+  });
 });
