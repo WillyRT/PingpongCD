@@ -1,9 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { isSuperAdminProfile } from '@/lib/auth/rbac';
 import { AdminUserManagement } from './AdminUserManagement';
-
-const SUPER_ADMIN_EMAIL = 'guillermoriveraterriza@gmail.com';
 
 export default async function AdminDashboard() {
   const supabase = await createClient();
@@ -11,7 +10,6 @@ export default async function AdminDashboard() {
   if (!user?.email) redirect('/login?redirect=/admin');
 
   const cleanEmail = user.email.toLowerCase().trim();
-  const isSuperAdmin = cleanEmail === SUPER_ADMIN_EMAIL;
 
   // Check admin role
   const { data: profile } = await supabase
@@ -20,9 +18,9 @@ export default async function AdminDashboard() {
     .eq('email', cleanEmail)
     .maybeSingle();
 
+  const isSuperAdmin = isSuperAdminProfile({ email: cleanEmail, role: profile?.role });
   const isAdmin =
     isSuperAdmin ||
-    profile?.role === 'super_admin' ||
     (profile?.role === 'admin' && profile?.admin_status === 'approved');
 
   if (!isAdmin) {
@@ -41,9 +39,8 @@ export default async function AdminDashboard() {
     const { data: users } = await supabase
       .from('profiles')
       .select('id, name, email, role, admin_status, created_at')
-      .neq('email', SUPER_ADMIN_EMAIL)
       .order('created_at', { ascending: false });
-    managedUsers = users ?? [];
+    managedUsers = (users ?? []).filter((u) => !isSuperAdminProfile(u));
   }
 
   const statusColors: Record<string, string> = {
@@ -71,7 +68,7 @@ export default async function AdminDashboard() {
             )}
           </div>
           <div className="flex items-center gap-2.5">
-            {isSuperAdmin && (
+            {isAdmin && (
               <Link
                 href="/admin/users"
                 className="px-3.5 py-2 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold hover:bg-amber-500/30 transition flex items-center gap-1.5"

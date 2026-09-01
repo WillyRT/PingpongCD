@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { updateUserRoleAction } from '@/lib/actions/admin';
+import { isSuperAdminProfile } from '@/lib/auth/rbac';
 
 export interface AdminManagedUser {
   id: string;
@@ -18,9 +19,10 @@ export interface AdminManagedUser {
 
 interface AdminUsersClientProps {
   initialUsers: AdminManagedUser[];
+  isSuperAdmin?: boolean;
 }
 
-export function AdminUsersClient({ initialUsers }: AdminUsersClientProps) {
+export function AdminUsersClient({ initialUsers, isSuperAdmin = false }: AdminUsersClientProps) {
   const [users, setUsers] = useState<AdminManagedUser[]>(initialUsers);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'staff' | 'player'>('all');
@@ -229,9 +231,7 @@ export function AdminUsersClient({ initialUsers }: AdminUsersClientProps) {
           </div>
         ) : (
           filteredUsers.map((u) => {
-            const isRootSuperAdmin =
-              u.role === 'super_admin' ||
-              u.email?.toLowerCase().trim() === 'guillermoriveraterriza@gmail.com';
+            const isRootSuperAdmin = isSuperAdminProfile(u);
             const isUpdating = updatingUserId === u.id;
 
             return (
@@ -293,6 +293,10 @@ export function AdminUsersClient({ initialUsers }: AdminUsersClientProps) {
                     <span className="text-[11px] font-bold text-[var(--muted-foreground)] italic px-2">
                       Rol raíz protegido
                     </span>
+                  ) : !isSuperAdmin && (u.role === 'admin' || u.role === 'super_admin') ? (
+                    <span className="text-[11px] font-bold text-[var(--muted-foreground)] italic px-2">
+                      Solo editable por Superadmin
+                    </span>
                   ) : (
                     <div className="flex items-center gap-2">
                       <label className="text-xs font-bold text-[var(--muted-foreground)] hidden sm:inline">
@@ -317,7 +321,7 @@ export function AdminUsersClient({ initialUsers }: AdminUsersClientProps) {
                       >
                         <option value="player">🏓 Jugador</option>
                         <option value="referee">⏱️ Árbitro</option>
-                        <option value="admin">👑 Administrador</option>
+                        {isSuperAdmin && <option value="admin">👑 Administrador</option>}
                       </select>
                     </div>
                   )}

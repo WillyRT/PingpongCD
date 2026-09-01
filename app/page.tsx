@@ -1,4 +1,5 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { isSuperAdminProfile } from '@/lib/auth/rbac';
 import { HomeClient } from '@/components/HomeClient';
 import RecentChampions from '@/components/RecentChampions';
 import type { TournamentRow } from '@/lib/types/database';
@@ -23,9 +24,9 @@ export default async function HomePage() {
         .eq('email', cleanEmail)
         .maybeSingle();
 
+      const isSuperAdmin = isSuperAdminProfile({ email: cleanEmail, role: profile?.role });
       isAdmin =
-        cleanEmail === 'guillermoriveraterriza@gmail.com' ||
-        profile?.role === 'super_admin' ||
+        isSuperAdmin ||
         (profile?.role === 'admin' && profile?.admin_status === 'approved');
     }
 

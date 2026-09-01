@@ -1,6 +1,7 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { getPlayerSession } from '@/lib/auth/player-session';
 import { notFound, redirect } from 'next/navigation';
+import { isSuperAdminProfile } from '@/lib/auth/rbac';
 import { StationsClient } from './StationsClient';
 
 interface PageProps {
@@ -42,8 +43,8 @@ export default async function TournamentStationsPage({ params }: PageProps) {
   }
 
   const cleanEmail = userProfile?.email?.toLowerCase().trim() || callerEmail?.toLowerCase().trim();
-  const isSuperAdmin = cleanEmail === 'guillermoriveraterriza@gmail.com' || userProfile?.role === 'super_admin';
-  const isAdmin = isSuperAdmin || (userProfile?.role === 'admin' && userProfile?.admin_status === 'approved') || userProfile?.role === 'admin';
+  const isSuperAdmin = isSuperAdminProfile(userProfile || { email: cleanEmail, role: undefined });
+  const isAdmin = isSuperAdmin || (userProfile?.role === 'admin' && userProfile?.admin_status === 'approved');
   const isReferee = userProfile?.role === 'referee';
 
   if (!isAdmin && !isReferee) {

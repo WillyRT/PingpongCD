@@ -8,6 +8,8 @@ import { determineAgeCategory } from '@/lib/engine/categories';
 import { getPlayerSession } from '@/lib/auth/player-session';
 import type { ActionResponse } from './tournament';
 
+import { isSuperAdminProfile, isApprovedAdminProfile } from '@/lib/auth/rbac';
+
 /** Helper to verify if user has admin/referee privileges based solely on database RBAC */
 export async function verifyAdminUser(): Promise<{
   authorized: boolean;
@@ -26,11 +28,11 @@ export async function verifyAdminUser(): Promise<{
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, admin_status')
+    .select('role, admin_status, email')
     .eq('id', user.id)
     .single();
 
-  const isSuperAdmin = profile?.role === 'super_admin' || user.email?.toLowerCase() === 'guillermoriveraterriza@gmail.com';
+  const isSuperAdmin = isSuperAdminProfile({ email: user.email, role: profile?.role });
   const isAdmin = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_status === 'approved');
   const isReferee = profile?.role === 'referee';
 
@@ -46,13 +48,10 @@ export async function verifyAdminUser(): Promise<{
 }
 
 /**
- * Superadmin Role Management Action:
- * - targetUserId: UUID of the profile
- * - newRole: 'player' | 'referee' | 'admin'
- * 
- * Rules:
- * - Only super_admin or guillermoriveraterriza@gmail.com can call this.
- * - Root superadmin cannot be modified.
+ * Tiered Role Management Action:
+ * - Superadmin: Can promote/demote anyone to any role ('player', 'referee', 'admin').
+ * - Admin (approved): Can only assign 'player' or 'referee' to players or referees (cannot touch admins/superadmins or grant admin).
+ * - Root superadmin is strictly protected and cannot be modified.
  * - Updates role and sets admin_status ('approved' for admin/referee, null for player).
  * - Revalidates /admin, /admin/users, /tables, /me.
  */
@@ -69,27 +68,36 @@ export async function updateUserRoleAction(
     const callerEmail = user?.email || playerSession?.email;
     const cleanCallerEmail = callerEmail?.toLowerCase().trim();
 
-    let isCallerSuperAdmin = cleanCallerEmail === 'guillermoriveraterriza@gmail.com';
-
-    if (!isCallerSuperAdmin && cleanCallerEmail) {
-      const { data: callerProfile } = await adminClient
+    let callerProfile: any = null;
+    if (cleanCallerEmail) {
+      const { data: profile } = await adminClient
         .from('profiles')
-        .select('role')
+        .select('id, role, email, admin_status')
         .eq('email', cleanCallerEmail)
         .maybeSingle();
-      isCallerSuperAdmin = callerProfile?.role === 'super_admin';
+      callerProfile = profile;
+    } else if (user?.id || playerSession?.playerId) {
+      const { data: profile } = await adminClient
+        .from('profiles')
+        .select('id, role, email, admin_status')
+        .eq('id', user?.id || playerSession?.playerId)
+        .maybeSingle();
+      callerProfile = profile;
     }
 
-    if (!isCallerSuperAdmin) {
+    const isCallerSuperAdmin = isSuperAdminProfile(callerProfile || { email: cleanCallerEmail, role: undefined });
+    const isCallerApprovedAdmin = callerProfile?.role === 'admin' && callerProfile?.admin_status === 'approved';
+
+    if (!isCallerSuperAdmin && !isCallerApprovedAdmin) {
       return {
         success: false,
-        error: 'Acceso denegado: Solo el Superadministrador puede gestionar los roles del staff.',
+        error: 'Acceso denegado: Se requieren permisos de administrador o superadministrador.',
       };
     }
 
     const { data: targetProfile } = await adminClient
       .from('profiles')
-      .select('id, email, role')
+      .select('id, email, role, admin_status')
       .eq('id', targetUserId)
       .maybeSingle();
 
@@ -97,12 +105,28 @@ export async function updateUserRoleAction(
       return { success: false, error: 'Usuario no encontrado.' };
     }
 
-    const targetEmail = targetProfile.email?.toLowerCase().trim();
-    if (targetEmail === 'guillermoriveraterriza@gmail.com' || targetProfile.role === 'super_admin') {
+    // Root superadmin protection
+    if (isSuperAdminProfile(targetProfile)) {
       return {
         success: false,
         error: 'No se puede modificar el rol del Superadministrador principal.',
       };
+    }
+
+    // Tiered permissions: regular admin checks
+    if (!isCallerSuperAdmin) {
+      if (targetProfile.role === 'admin' || targetProfile.role === 'super_admin') {
+        return {
+          success: false,
+          error: 'Solo el Superadministrador puede modificar a otros administradores.',
+        };
+      }
+      if (newRole === 'admin') {
+        return {
+          success: false,
+          error: 'Solo el Superadministrador puede designar administradores.',
+        };
+      }
     }
 
     const newAdminStatus = newRole === 'player' ? null : 'approved';
@@ -122,11 +146,11 @@ export async function updateUserRoleAction(
 
     try {
       await adminClient.from('audit_logs').insert({
-        actor_id: user?.id || playerSession?.playerId || 'super-admin',
+        actor_id: user?.id || playerSession?.playerId || callerProfile?.id || 'staff',
         action: 'update_user_role',
         entity_type: 'profiles',
         entity_id: targetUserId,
-        previous_data: { role: targetProfile.role },
+        previous_data: { role: targetProfile.role, admin_status: targetProfile.admin_status },
         new_data: { role: newRole, admin_status: newAdminStatus },
       });
     } catch {

@@ -277,34 +277,99 @@ describe('Security, RBAC, Idempotency & Negative Testing Suite', () => {
   });
 
   // =========================================================================
-  // 5. STAFF & REFEREE ROLE MANAGEMENT (updateUserRoleAction)
+  // 5. STAFF & REFEREE ROLE MANAGEMENT & ADMIN_STATUS RBAC
   // =========================================================================
-  describe('Staff & Referee Role Management (updateUserRoleAction logic)', () => {
+  describe('Staff & Referee Role Management & Admin Approval Invariants', () => {
     const SUPER_ADMIN_EMAIL = 'guillermoriveraterriza@gmail.com';
 
-    function simulateUpdateUserRole(
-      caller: { email: string; role: string },
+    function isSuperAdminProfileTest(profile: { email?: string | null; role?: string } | null | undefined): boolean {
+      if (!profile) return false;
+      return profile.role === 'super_admin' || profile.email?.toLowerCase().trim() === SUPER_ADMIN_EMAIL;
+    }
+
+    function checkStationsConsoleAccess(profile: { email?: string | null; role?: string; admin_status?: string | null } | null) {
+      const isSuperAdmin = isSuperAdminProfileTest(profile);
+      const isAdmin = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_status === 'approved');
+      const isReferee = profile?.role === 'referee';
+      return {
+        authorized: isAdmin || isReferee,
+        isAdmin,
+        isReferee,
+        isSuperAdmin,
+      };
+    }
+
+    it('REJECTS stations console access for user with role="admin" but admin_status="pending" (no bypass)', () => {
+      const pendingAdmin = { email: 'solicitante@example.com', role: 'admin', admin_status: 'pending' };
+      const access = checkStationsConsoleAccess(pendingAdmin);
+      expect(access.authorized).toBe(false);
+      expect(access.isAdmin).toBe(false);
+    });
+
+    it('REJECTS stations console access for user with role="admin" but admin_status="none" or null', () => {
+      const unapprovedAdmin = { email: 'unapproved@example.com', role: 'admin', admin_status: null };
+      const access = checkStationsConsoleAccess(unapprovedAdmin);
+      expect(access.authorized).toBe(false);
+      expect(access.isAdmin).toBe(false);
+    });
+
+    it('PERMITS stations console access for approved admin (role="admin" and admin_status="approved")', () => {
+      const approvedAdmin = { email: 'admin_real@example.com', role: 'admin', admin_status: 'approved' };
+      const access = checkStationsConsoleAccess(approvedAdmin);
+      expect(access.authorized).toBe(true);
+      expect(access.isAdmin).toBe(true);
+    });
+
+    it('PERMITS stations console access for referee (role="referee")', () => {
+      const referee = { email: 'arbitro@example.com', role: 'referee', admin_status: 'approved' };
+      const access = checkStationsConsoleAccess(referee);
+      expect(access.authorized).toBe(true);
+      expect(access.isReferee).toBe(true);
+    });
+
+    it('PERMITS stations console access for root superadmin', () => {
+      const superadmin = { email: SUPER_ADMIN_EMAIL, role: 'super_admin', admin_status: 'approved' };
+      const access = checkStationsConsoleAccess(superadmin);
+      expect(access.authorized).toBe(true);
+      expect(access.isSuperAdmin).toBe(true);
+    });
+
+    function simulateTieredUpdateUserRole(
+      caller: { email: string; role: string; admin_status?: string | null },
       target: { id: string; email: string; role: string; admin_status: string | null },
       newRole: 'player' | 'referee' | 'admin'
     ): { success: boolean; error?: string; updated?: { role: string; admin_status: string | null } } {
-      const isCallerSuperAdmin =
-        caller.email.toLowerCase().trim() === SUPER_ADMIN_EMAIL || caller.role === 'super_admin';
+      const isCallerSuperAdmin = isSuperAdminProfileTest(caller);
+      const isCallerApprovedAdmin = caller.role === 'admin' && caller.admin_status === 'approved';
 
-      if (!isCallerSuperAdmin) {
+      if (!isCallerSuperAdmin && !isCallerApprovedAdmin) {
         return {
           success: false,
-          error: 'Acceso denegado: Solo el Superadministrador puede gestionar los roles del staff.',
+          error: 'Acceso denegado: Se requieren permisos de administrador o superadministrador.',
         };
       }
 
-      if (
-        target.email.toLowerCase().trim() === SUPER_ADMIN_EMAIL ||
-        target.role === 'super_admin'
-      ) {
+      if (isSuperAdminProfileTest(target)) {
         return {
           success: false,
           error: 'No se puede modificar el rol del Superadministrador principal.',
         };
+      }
+
+      // Tiered rules for regular admins:
+      if (!isCallerSuperAdmin) {
+        if (target.role === 'admin' || target.role === 'super_admin') {
+          return {
+            success: false,
+            error: 'Solo el Superadministrador puede modificar a otros administradores.',
+          };
+        }
+        if (newRole === 'admin') {
+          return {
+            success: false,
+            error: 'Solo el Superadministrador puede designar administradores.',
+          };
+        }
       }
 
       const newAdminStatus = newRole === 'player' ? null : 'approved';
@@ -322,7 +387,7 @@ describe('Security, RBAC, Idempotency & Negative Testing Suite', () => {
       const caller = { email: SUPER_ADMIN_EMAIL, role: 'super_admin' };
       const target = { id: 'p1', email: 'vecino@example.com', role: 'player', admin_status: null };
 
-      const result = simulateUpdateUserRole(caller, target, 'referee');
+      const result = simulateTieredUpdateUserRole(caller, target, 'referee');
       expect(result.success).toBe(true);
       expect(result.updated?.role).toBe('referee');
       expect(result.updated?.admin_status).toBe('approved');
@@ -332,43 +397,71 @@ describe('Security, RBAC, Idempotency & Negative Testing Suite', () => {
       const caller = { email: SUPER_ADMIN_EMAIL, role: 'super_admin' };
       const target = { id: 'p2', email: 'organizador@example.com', role: 'player', admin_status: null };
 
-      const result = simulateUpdateUserRole(caller, target, 'admin');
+      const result = simulateTieredUpdateUserRole(caller, target, 'admin');
       expect(result.success).toBe(true);
       expect(result.updated?.role).toBe('admin');
       expect(result.updated?.admin_status).toBe('approved');
     });
 
-    it('allows superadmin to demote a referee or admin back to player with admin_status=null', () => {
-      const caller = { email: SUPER_ADMIN_EMAIL, role: 'super_admin' };
-      const target = { id: 'p3', email: 'arbitro@example.com', role: 'referee', admin_status: 'approved' };
+    it('allows approved admin to assign referee role to a player', () => {
+      const adminCaller = { email: 'admin@example.com', role: 'admin', admin_status: 'approved' };
+      const target = { id: 'p3', email: 'vecino_arbitro@example.com', role: 'player', admin_status: null };
 
-      const result = simulateUpdateUserRole(caller, target, 'player');
+      const result = simulateTieredUpdateUserRole(adminCaller, target, 'referee');
+      expect(result.success).toBe(true);
+      expect(result.updated?.role).toBe('referee');
+      expect(result.updated?.admin_status).toBe('approved');
+    });
+
+    it('allows approved admin to demote a referee back to player', () => {
+      const adminCaller = { email: 'admin@example.com', role: 'admin', admin_status: 'approved' };
+      const target = { id: 'p4', email: 'ex_arbitro@example.com', role: 'referee', admin_status: 'approved' };
+
+      const result = simulateTieredUpdateUserRole(adminCaller, target, 'player');
       expect(result.success).toBe(true);
       expect(result.updated?.role).toBe('player');
       expect(result.updated?.admin_status).toBeNull();
+    });
+
+    it('REJECTS regular admin attempting to assign admin role to someone', () => {
+      const adminCaller = { email: 'admin@example.com', role: 'admin', admin_status: 'approved' };
+      const target = { id: 'p5', email: 'amigo@example.com', role: 'player', admin_status: null };
+
+      const result = simulateTieredUpdateUserRole(adminCaller, target, 'admin');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Solo el Superadministrador puede designar administradores');
+    });
+
+    it('REJECTS regular admin attempting to modify another admin', () => {
+      const adminCaller = { email: 'admin@example.com', role: 'admin', admin_status: 'approved' };
+      const target = { id: 'p6', email: 'otro_admin@example.com', role: 'admin', admin_status: 'approved' };
+
+      const result = simulateTieredUpdateUserRole(adminCaller, target, 'player');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Solo el Superadministrador puede modificar a otros administradores');
     });
 
     it('prevents anyone from demoting or modifying the root superadmin role', () => {
       const caller = { email: SUPER_ADMIN_EMAIL, role: 'super_admin' };
       const rootTarget = { id: 'root', email: SUPER_ADMIN_EMAIL, role: 'super_admin', admin_status: 'approved' };
 
-      const result = simulateUpdateUserRole(caller, rootTarget, 'player');
+      const result = simulateTieredUpdateUserRole(caller, rootTarget, 'player');
       expect(result.success).toBe(false);
       expect(result.error).toContain('No se puede modificar el rol del Superadministrador principal');
     });
 
-    it('forbids normal players or regular admins from modifying roles', () => {
-      const playerCaller = { email: 'player@example.com', role: 'player' };
-      const adminCaller = { email: 'admin@example.com', role: 'admin' };
-      const target = { id: 'p4', email: 'other@example.com', role: 'player', admin_status: null };
+    it('forbids normal players or unapproved admins from modifying roles', () => {
+      const playerCaller = { email: 'player@example.com', role: 'player', admin_status: null };
+      const unapprovedAdminCaller = { email: 'pending_admin@example.com', role: 'admin', admin_status: 'pending' };
+      const target = { id: 'p7', email: 'other@example.com', role: 'player', admin_status: null };
 
-      const resPlayer = simulateUpdateUserRole(playerCaller, target, 'referee');
+      const resPlayer = simulateTieredUpdateUserRole(playerCaller, target, 'referee');
       expect(resPlayer.success).toBe(false);
       expect(resPlayer.error).toContain('Acceso denegado');
 
-      const resAdmin = simulateUpdateUserRole(adminCaller, target, 'referee');
-      expect(resAdmin.success).toBe(false);
-      expect(resAdmin.error).toContain('Acceso denegado');
+      const resPending = simulateTieredUpdateUserRole(unapprovedAdminCaller, target, 'referee');
+      expect(resPending.success).toBe(false);
+      expect(resPending.error).toContain('Acceso denegado');
     });
   });
 });

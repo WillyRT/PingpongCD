@@ -1,11 +1,10 @@
-﻿import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { getPlayerSession } from '@/lib/auth/player-session';
 import { redirect } from 'next/navigation';
+import { isSuperAdminProfile } from '@/lib/auth/rbac';
 import { AdminUsersClient, type AdminManagedUser } from '@/components/admin/AdminUsersClient';
 
 export const dynamic = 'force-dynamic';
-
-const SUPER_ADMIN_EMAIL = 'guillermoriveraterriza@gmail.com';
 
 export default async function AdminUsersPage() {
   const supabase = await createClient();
@@ -15,26 +14,36 @@ export default async function AdminUsersPage() {
   const { data: { user } } = await supabase.auth.getUser();
   const playerSession = await getPlayerSession();
   const callerEmail = user?.email || playerSession?.email;
+  const callerId = user?.id || playerSession?.playerId;
 
-  if (!callerEmail) {
+  if (!callerEmail && !callerId) {
     redirect('/login?redirectTo=/admin/users');
   }
 
-  const cleanEmail = callerEmail.toLowerCase().trim();
-  let isSuperAdmin = cleanEmail === SUPER_ADMIN_EMAIL;
+  const cleanEmail = callerEmail?.toLowerCase().trim();
+  let callerProfile: any = null;
 
-  if (!isSuperAdmin) {
+  if (cleanEmail) {
     const { data: profile } = await admin
       .from('profiles')
-      .select('role')
+      .select('id, role, email, admin_status')
       .eq('email', cleanEmail)
       .maybeSingle();
-
-    isSuperAdmin = profile?.role === 'super_admin';
+    callerProfile = profile;
+  } else if (callerId) {
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('id, role, email, admin_status')
+      .eq('id', callerId)
+      .maybeSingle();
+    callerProfile = profile;
   }
 
-  // 2. Strict Superadmin Access Protection
-  if (!isSuperAdmin) {
+  const isSuperAdmin = isSuperAdminProfile(callerProfile || { email: cleanEmail, role: undefined });
+  const isApprovedAdmin = callerProfile?.role === 'admin' && callerProfile?.admin_status === 'approved';
+
+  // 2. Strict Superadmin & Approved Admin Access Protection
+  if (!isSuperAdmin && !isApprovedAdmin) {
     redirect('/?error=unauthorized');
   }
 
@@ -59,8 +68,12 @@ export default async function AdminUsersPage() {
   return (
     <main className="min-h-screen bg-[var(--background)] px-4 py-8 md:py-12">
       <div className="max-w-4xl mx-auto">
-        <AdminUsersClient initialUsers={initialUsers} />
+        <AdminUsersClient
+          initialUsers={initialUsers}
+          isSuperAdmin={isSuperAdmin}
+        />
       </div>
     </main>
   );
 }
+
