@@ -70,12 +70,23 @@ export default async function AdminDashboard() {
               </span>
             )}
           </div>
-          <Link
-            href="/admin/tournaments/new"
-            className="px-4 py-2 rounded-lg gradient-primary text-white text-sm font-medium"
-          >
-            + New Tournament
-          </Link>
+          <div className="flex items-center gap-2.5">
+            {isSuperAdmin && (
+              <Link
+                href="/admin/users"
+                className="px-3.5 py-2 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold hover:bg-amber-500/30 transition flex items-center gap-1.5"
+              >
+                <span>🛡️</span>
+                <span>Gestión de Staff y Árbitros</span>
+              </Link>
+            )}
+            <Link
+              href="/admin/tournaments/new"
+              className="px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-bold shadow transition hover:opacity-90"
+            >
+              + New Tournament
+            </Link>
+          </div>
         </div>
       </header>
 

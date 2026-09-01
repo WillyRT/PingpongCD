@@ -97,3 +97,42 @@ export function validateScoreForStage(
 export function determineWinner(score1: number, score2: number): 1 | 2 {
   return score1 > score2 ? 1 : 2;
 }
+
+/**
+ * Dynamic score presets for quick mobile entry:
+ * - Group stage (7 pts): 7-5, 7-4, 7-3, 7-2, 8-6 and reverse.
+ * - Final match (15 pts): 15-13, 15-12, 15-11, 15-9, 16-14 and reverse.
+ * - Knockout / Playoffs (11 pts): 11-9, 11-8, 11-7, 11-5, 12-10 and reverse.
+ */
+export function getScorePresetsForStage(stage?: string | null): [number, number][] {
+  const normStage = stage ? stage.toLowerCase().trim() : 'group';
+
+  if (
+    normStage === 'final' ||
+    (normStage.includes('final') &&
+      !normStage.includes('semi') &&
+      !normStage.includes('quarter') &&
+      !normStage.includes('octav'))
+  ) {
+    return [
+      [15, 13], [15, 12], [15, 11], [15, 9], [16, 14],
+      [13, 15], [12, 15], [11, 15], [9, 15], [14, 16],
+    ];
+  }
+
+  if (
+    normStage.includes('group') ||
+    normStage === 'group_stage' ||
+    normStage === 'round_robin'
+  ) {
+    return [
+      [7, 5], [7, 4], [7, 3], [7, 2], [8, 6],
+      [5, 7], [4, 7], [3, 7], [2, 7], [6, 8],
+    ];
+  }
+
+  return [
+    [11, 9], [11, 8], [11, 7], [11, 5], [12, 10],
+    [9, 11], [8, 11], [7, 11], [5, 11], [10, 12],
+  ];
+}

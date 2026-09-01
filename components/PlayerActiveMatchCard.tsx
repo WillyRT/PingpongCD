@@ -8,57 +8,9 @@ import {
   disputeMatchScoreAction,
 } from '@/lib/actions/matches';
 import { createClient } from '@/lib/supabase/client';
+import { getScorePresetsForStage } from '@/lib/engine/scoring';
 
-/**
- * Dynamic score presets according to the tournament match stage:
- * - 'group': 7-point presets ([7,5], [7,4], [7,3], [7,2], [8,6] and reverses)
- * - 'final': 15-point presets ([15,13], [15,12], [15,11], [15,9], [16,14] and reverses)
- * - 'round_of_16' | 'quarterfinal' | 'semifinal': 11-point presets ([11,9], [11,8], [11,7], [11,5], [12,10] and reverses)
- */
-export function getScorePresetsForStage(stage?: string | null): [number, number][] {
-  const s = stage?.toLowerCase().trim() || 'group';
-  if (s === 'group' || s.startsWith('group') || s === 'groups') {
-    return [
-      [7, 5],
-      [7, 4],
-      [7, 3],
-      [7, 2],
-      [8, 6],
-      [5, 7],
-      [4, 7],
-      [3, 7],
-      [2, 7],
-      [6, 8],
-    ];
-  }
-  if (s === 'final') {
-    return [
-      [15, 13],
-      [15, 12],
-      [15, 11],
-      [15, 9],
-      [16, 14],
-      [13, 15],
-      [12, 15],
-      [11, 15],
-      [9, 15],
-      [14, 16],
-    ];
-  }
-  // 'round_of_16' | 'quarterfinal' | 'semifinal' or other playoff stages
-  return [
-    [11, 9],
-    [11, 8],
-    [11, 7],
-    [11, 5],
-    [12, 10],
-    [9, 11],
-    [8, 11],
-    [7, 11],
-    [5, 11],
-    [10, 12],
-  ];
-}
+export { getScorePresetsForStage };
 
 interface PlayerActiveMatchCardProps {
   match: {

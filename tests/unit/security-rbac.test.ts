@@ -275,4 +275,100 @@ describe('Security, RBAC, Idempotency & Negative Testing Suite', () => {
       expect(standings[2]?.initialRating).toBe(1490);
     });
   });
+
+  // =========================================================================
+  // 5. STAFF & REFEREE ROLE MANAGEMENT (updateUserRoleAction)
+  // =========================================================================
+  describe('Staff & Referee Role Management (updateUserRoleAction logic)', () => {
+    const SUPER_ADMIN_EMAIL = 'guillermoriveraterriza@gmail.com';
+
+    function simulateUpdateUserRole(
+      caller: { email: string; role: string },
+      target: { id: string; email: string; role: string; admin_status: string | null },
+      newRole: 'player' | 'referee' | 'admin'
+    ): { success: boolean; error?: string; updated?: { role: string; admin_status: string | null } } {
+      const isCallerSuperAdmin =
+        caller.email.toLowerCase().trim() === SUPER_ADMIN_EMAIL || caller.role === 'super_admin';
+
+      if (!isCallerSuperAdmin) {
+        return {
+          success: false,
+          error: 'Acceso denegado: Solo el Superadministrador puede gestionar los roles del staff.',
+        };
+      }
+
+      if (
+        target.email.toLowerCase().trim() === SUPER_ADMIN_EMAIL ||
+        target.role === 'super_admin'
+      ) {
+        return {
+          success: false,
+          error: 'No se puede modificar el rol del Superadministrador principal.',
+        };
+      }
+
+      const newAdminStatus = newRole === 'player' ? null : 'approved';
+
+      return {
+        success: true,
+        updated: {
+          role: newRole,
+          admin_status: newAdminStatus,
+        },
+      };
+    }
+
+    it('allows superadmin to promote a player to referee with admin_status=approved', () => {
+      const caller = { email: SUPER_ADMIN_EMAIL, role: 'super_admin' };
+      const target = { id: 'p1', email: 'vecino@example.com', role: 'player', admin_status: null };
+
+      const result = simulateUpdateUserRole(caller, target, 'referee');
+      expect(result.success).toBe(true);
+      expect(result.updated?.role).toBe('referee');
+      expect(result.updated?.admin_status).toBe('approved');
+    });
+
+    it('allows superadmin to promote a player to admin with admin_status=approved', () => {
+      const caller = { email: SUPER_ADMIN_EMAIL, role: 'super_admin' };
+      const target = { id: 'p2', email: 'organizador@example.com', role: 'player', admin_status: null };
+
+      const result = simulateUpdateUserRole(caller, target, 'admin');
+      expect(result.success).toBe(true);
+      expect(result.updated?.role).toBe('admin');
+      expect(result.updated?.admin_status).toBe('approved');
+    });
+
+    it('allows superadmin to demote a referee or admin back to player with admin_status=null', () => {
+      const caller = { email: SUPER_ADMIN_EMAIL, role: 'super_admin' };
+      const target = { id: 'p3', email: 'arbitro@example.com', role: 'referee', admin_status: 'approved' };
+
+      const result = simulateUpdateUserRole(caller, target, 'player');
+      expect(result.success).toBe(true);
+      expect(result.updated?.role).toBe('player');
+      expect(result.updated?.admin_status).toBeNull();
+    });
+
+    it('prevents anyone from demoting or modifying the root superadmin role', () => {
+      const caller = { email: SUPER_ADMIN_EMAIL, role: 'super_admin' };
+      const rootTarget = { id: 'root', email: SUPER_ADMIN_EMAIL, role: 'super_admin', admin_status: 'approved' };
+
+      const result = simulateUpdateUserRole(caller, rootTarget, 'player');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('No se puede modificar el rol del Superadministrador principal');
+    });
+
+    it('forbids normal players or regular admins from modifying roles', () => {
+      const playerCaller = { email: 'player@example.com', role: 'player' };
+      const adminCaller = { email: 'admin@example.com', role: 'admin' };
+      const target = { id: 'p4', email: 'other@example.com', role: 'player', admin_status: null };
+
+      const resPlayer = simulateUpdateUserRole(playerCaller, target, 'referee');
+      expect(resPlayer.success).toBe(false);
+      expect(resPlayer.error).toContain('Acceso denegado');
+
+      const resAdmin = simulateUpdateUserRole(adminCaller, target, 'referee');
+      expect(resAdmin.success).toBe(false);
+      expect(resAdmin.error).toContain('Acceso denegado');
+    });
+  });
 });

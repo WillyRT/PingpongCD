@@ -6,6 +6,7 @@ import {
   validateFinalScore,
   validateScoreForStage,
   determineWinner,
+  getScorePresetsForStage,
 } from '../../lib/engine/scoring';
 
 describe('Scoring Engine', () => {
@@ -127,8 +128,7 @@ describe('Scoring Engine', () => {
   });
 
   describe('Dynamic Stage Score Presets (getScorePresetsForStage)', () => {
-    it('returns 7-point target presets for group stage', async () => {
-      const { getScorePresetsForStage } = await import('../../components/PlayerActiveMatchCard');
+    it('returns 7-point target presets for group stage', () => {
       const groupPresets = getScorePresetsForStage('group');
       expect(groupPresets).toEqual([
         [7, 5],
@@ -144,8 +144,7 @@ describe('Scoring Engine', () => {
       ]);
     });
 
-    it('returns 15-point target presets for final match', async () => {
-      const { getScorePresetsForStage } = await import('../../components/PlayerActiveMatchCard');
+    it('returns 15-point target presets for final match', () => {
       const finalPresets = getScorePresetsForStage('final');
       expect(finalPresets).toEqual([
         [15, 13],
@@ -161,8 +160,7 @@ describe('Scoring Engine', () => {
       ]);
     });
 
-    it('returns 11-point target presets for playoff elimination rounds', async () => {
-      const { getScorePresetsForStage } = await import('../../components/PlayerActiveMatchCard');
+    it('returns 11-point target presets for playoff elimination rounds', () => {
       for (const stage of ['round_of_16', 'quarterfinal', 'semifinal']) {
         expect(getScorePresetsForStage(stage)).toEqual([
           [11, 9],

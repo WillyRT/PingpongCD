@@ -46,48 +46,66 @@ export async function verifyAdminUser(): Promise<{
 }
 
 /**
- * Role Promotion/Demotion:
- * - super_admin: Can promote/demote to any role ('admin', 'referee', 'player').
- * - admin: Can promote or demote users ONLY to/from 'referee' (cannot promote to 'admin' or 'super_admin').
+ * Superadmin Role Management Action:
+ * - targetUserId: UUID of the profile
+ * - newRole: 'player' | 'referee' | 'admin'
+ * 
+ * Rules:
+ * - Only super_admin or guillermoriveraterriza@gmail.com can call this.
+ * - Root superadmin cannot be modified.
+ * - Updates role and sets admin_status ('approved' for admin/referee, null for player).
+ * - Revalidates /admin, /admin/users, /tables, /me.
  */
-export async function setUserRoleAction(
+export async function updateUserRoleAction(
   targetUserId: string,
-  newRole: 'admin' | 'referee' | 'player'
+  newRole: 'player' | 'referee' | 'admin'
 ): Promise<ActionResponse> {
   try {
-    const auth = await verifyAdminUser();
-    if (!auth.authorized) {
-      return { success: false, error: 'Acceso no autorizado' };
-    }
-
-    if (newRole === 'admin' && !auth.isSuperAdmin) {
-      return {
-        success: false,
-        error: 'Solo el Superadmin principal puede otorgar permisos de Administrador.',
-      };
-    }
-
-    if (!auth.isAdmin && !auth.isSuperAdmin) {
-      return {
-        success: false,
-        error: 'Los árbitros no tienen permisos para modificar roles de usuario.',
-      };
-    }
-
+    const supabase = await createClient();
     const adminClient = createAdminClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const playerSession = await getPlayerSession();
+
+    const callerEmail = user?.email || playerSession?.email;
+    const cleanCallerEmail = callerEmail?.toLowerCase().trim();
+
+    let isCallerSuperAdmin = cleanCallerEmail === 'guillermoriveraterriza@gmail.com';
+
+    if (!isCallerSuperAdmin && cleanCallerEmail) {
+      const { data: callerProfile } = await adminClient
+        .from('profiles')
+        .select('role')
+        .eq('email', cleanCallerEmail)
+        .maybeSingle();
+      isCallerSuperAdmin = callerProfile?.role === 'super_admin';
+    }
+
+    if (!isCallerSuperAdmin) {
+      return {
+        success: false,
+        error: 'Acceso denegado: Solo el Superadministrador puede gestionar los roles del staff.',
+      };
+    }
+
     const { data: targetProfile } = await adminClient
       .from('profiles')
-      .select('role, email')
+      .select('id, email, role')
       .eq('id', targetUserId)
       .maybeSingle();
 
-    if (!targetProfile) return { success: false, error: 'Usuario no encontrado' };
-
-    if (targetProfile.role === 'super_admin' && !auth.isSuperAdmin) {
-      return { success: false, error: 'No se puede modificar el rol del Superadmin.' };
+    if (!targetProfile) {
+      return { success: false, error: 'Usuario no encontrado.' };
     }
 
-    const newAdminStatus = newRole === 'admin' ? 'approved' : 'none';
+    const targetEmail = targetProfile.email?.toLowerCase().trim();
+    if (targetEmail === 'guillermoriveraterriza@gmail.com' || targetProfile.role === 'super_admin') {
+      return {
+        success: false,
+        error: 'No se puede modificar el rol del Superadministrador principal.',
+      };
+    }
+
+    const newAdminStatus = newRole === 'player' ? null : 'approved';
 
     const { error } = await adminClient
       .from('profiles')
@@ -102,20 +120,41 @@ export async function setUserRoleAction(
       return { success: false, error: `Error actualizando rol: ${error.message}` };
     }
 
-    await adminClient.from('audit_logs').insert({
-      actor_id: auth.userId,
-      action: 'set_user_role',
-      entity_type: 'profiles',
-      entity_id: targetUserId,
-      previous_data: { role: targetProfile.role },
-      new_data: { role: newRole, admin_status: newAdminStatus },
-    });
+    try {
+      await adminClient.from('audit_logs').insert({
+        actor_id: user?.id || playerSession?.playerId || 'super-admin',
+        action: 'update_user_role',
+        entity_type: 'profiles',
+        entity_id: targetUserId,
+        previous_data: { role: targetProfile.role },
+        new_data: { role: newRole, admin_status: newAdminStatus },
+      });
+    } catch {
+      // Audit log optional
+    }
 
     revalidatePath('/admin');
+    revalidatePath('/admin/users');
+    revalidatePath('/tables');
+    revalidatePath('/me');
+
     return { success: true };
   } catch (err: unknown) {
-    return { success: false, error: err instanceof Error ? err.message : 'Error al modificar rol' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Error al actualizar el rol',
+    };
   }
+}
+
+/**
+ * Role Promotion/Demotion alias (backward compatible):
+ */
+export async function setUserRoleAction(
+  targetUserId: string,
+  newRole: 'admin' | 'referee' | 'player'
+): Promise<ActionResponse> {
+  return updateUserRoleAction(targetUserId, newRole);
 }
 
 /**

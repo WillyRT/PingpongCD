@@ -1,4 +1,5 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { getPlayerSession } from '@/lib/auth/player-session';
 import { notFound, redirect } from 'next/navigation';
 import { StationsClient } from './StationsClient';
 
@@ -10,26 +11,47 @@ export default async function TournamentStationsPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
   const admin = createAdminClient();
-  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) redirect(`/login?redirectTo=/admin/tournaments/${id}/stations`);
+  const { data: { user } } = await supabase.auth.getUser();
+  const playerSession = await getPlayerSession();
+  const callerEmail = user?.email || playerSession?.email;
+  const callerId = user?.id || playerSession?.playerId;
+
+  if (!callerEmail && !callerId) {
+    redirect(`/login?redirectTo=/admin/tournaments/${id}/stations`);
+  }
 
   // Verify referee or admin role
-  const { data: profile } = await admin
-    .from('profiles')
-    .select('role, admin_status, email')
-    .eq('id', user.id)
-    .maybeSingle();
+  let userProfile: any = null;
 
-  const isSuperAdmin =
-    profile?.role === 'super_admin' ||
-    user.email?.toLowerCase() === 'guillermoriveraterriza@gmail.com';
-  const isAdmin = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_status === 'approved');
-  const isReferee = profile?.role === 'referee';
+  if (callerEmail) {
+    const cleanEmail = callerEmail.toLowerCase().trim();
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('id, role, admin_status, email')
+      .eq('email', cleanEmail)
+      .maybeSingle();
+    userProfile = profile;
+  } else if (callerId) {
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('id, role, admin_status, email')
+      .eq('id', callerId)
+      .maybeSingle();
+    userProfile = profile;
+  }
+
+  const cleanEmail = userProfile?.email?.toLowerCase().trim() || callerEmail?.toLowerCase().trim();
+  const isSuperAdmin = cleanEmail === 'guillermoriveraterriza@gmail.com' || userProfile?.role === 'super_admin';
+  const isAdmin = isSuperAdmin || (userProfile?.role === 'admin' && userProfile?.admin_status === 'approved') || userProfile?.role === 'admin';
+  const isReferee = userProfile?.role === 'referee';
 
   if (!isAdmin && !isReferee) {
     redirect('/me');
   }
+
+  const effectiveUserId = userProfile?.id || user?.id || playerSession?.playerId || 'referee-user';
+  const effectiveRole = isSuperAdmin ? 'super_admin' : isAdmin ? 'admin' : isReferee ? 'referee' : 'referee';
 
   // Fetch tournament
   const { data: tournament } = await admin
@@ -63,8 +85,8 @@ export default async function TournamentStationsPage({ params }: PageProps) {
       tournament={tournament}
       groups={groups || []}
       matches={matches || []}
-      currentUserId={user.id}
-      userRole={profile?.role || 'referee'}
+      currentUserId={effectiveUserId}
+      userRole={effectiveRole}
     />
   );
 }
