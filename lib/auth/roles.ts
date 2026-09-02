@@ -1,16 +1,49 @@
-export const SUPER_ADMIN_EMAIL = 'guillermoriveraterriza@gmail.com';
+export const getRootSuperadminEmail = (): string =>
+  process.env.ROOT_SUPERADMIN_EMAIL?.toLowerCase().trim() || 'guillermoriveraterriza@gmail.com';
+
+export const SUPER_ADMIN_EMAIL = getRootSuperadminEmail();
 
 /**
  * Centralized helper to check if a profile belongs to the Superadmin.
- * Normalizes email (lowercase + trim) and checks role === 'super_admin'.
+ * Normalizes email (lowercase + trim) and checks role === 'super_admin'
+ * or match against ROOT_SUPERADMIN_EMAIL / SUPER_ADMIN_EMAIL.
  */
 export function isSuperAdminProfile(
   profile: { email?: string | null; role?: string | null } | null | undefined
 ): boolean {
+  const rootEmail = process.env.ROOT_SUPERADMIN_EMAIL?.toLowerCase().trim() || SUPER_ADMIN_EMAIL;
+  const cleanEmail = profile?.email?.toLowerCase().trim();
   return (
     profile?.role === 'super_admin' ||
-    profile?.email?.toLowerCase().trim() === SUPER_ADMIN_EMAIL
+    (Boolean(rootEmail) && cleanEmail === rootEmail)
   );
+}
+
+/**
+ * Evaluates the full canonical 4-tier hierarchy:
+ * const rootEmail = process.env.ROOT_SUPERADMIN_EMAIL?.toLowerCase().trim();
+ * const isSuperAdmin = profile?.role === 'super_admin' || (rootEmail && cleanEmail === rootEmail);
+ * const isAdmin = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_status === 'approved');
+ * const isReferee = isAdmin || profile?.role === 'referee';
+ */
+export function evaluateUserPermissions(
+  profile: { email?: string | null; role?: string | null; admin_status?: string | null } | null | undefined,
+  callerEmail?: string | null
+): {
+  isSuperAdmin: boolean;
+  isAdmin: boolean;
+  isReferee: boolean;
+} {
+  const rootEmail = process.env.ROOT_SUPERADMIN_EMAIL?.toLowerCase().trim();
+  const cleanEmail = (profile?.email || callerEmail)?.toLowerCase().trim();
+  const isSuperAdmin =
+    profile?.role === 'super_admin' ||
+    Boolean(rootEmail && cleanEmail === rootEmail) ||
+    isSuperAdminProfile(profile || { email: cleanEmail, role: undefined });
+  const isAdmin = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_status === 'approved');
+  const isReferee = isAdmin || profile?.role === 'referee';
+
+  return { isSuperAdmin, isAdmin, isReferee };
 }
 
 /**

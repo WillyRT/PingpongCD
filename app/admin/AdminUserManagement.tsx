@@ -59,7 +59,7 @@ export function AdminUserManagement({ initialUsers }: { initialUsers: ManagedUse
             <h2 className="text-lg font-bold text-amber-400">Control de Acceso y Administradores (RBAC)</h2>
           </div>
           <p className="text-xs text-[var(--muted-foreground)]">
-            Panel exclusivo del Superadmin principal (<code>guillermoriveraterriza@gmail.com</code>).
+            Panel exclusivo del Superadministrador principal.
           </p>
         </div>
       </div>

@@ -136,7 +136,7 @@ export async function searchExistingPlayersAction(
             emailMasked: obfuscateEmail(p.email),
             emailReal: p.email || undefined,
             birthDate: p.birth_date || undefined,
-            category: (p.category as any) || undefined,
+            category: p.category || undefined,
             rating: Math.round(p.rating ?? 1500),
             ratingDeviation: Math.round(p.rating_deviation ?? 350),
             matchesPlayed: p.matches_played ?? 0,
@@ -280,7 +280,7 @@ export async function lookupPlayerByEmailAction(email: string): Promise<ActionRe
           name: profile.name,
           rating: Math.round(profile.rating),
           ratingDeviation: Math.round(profile.rating_deviation),
-          category: profile.category as any,
+          category: profile.category || undefined,
         },
       };
     }
@@ -288,7 +288,7 @@ export async function lookupPlayerByEmailAction(email: string): Promise<ActionRe
     // 2. Check canonical players
     const { data: canonical } = await admin
       .from('players')
-      .select('id, canonical_name, category')
+      .select('id, canonical_name')
       .ilike('canonical_name', trimmed.split('@')[0] || '')
       .maybeSingle();
 
@@ -306,7 +306,7 @@ export async function lookupPlayerByEmailAction(email: string): Promise<ActionRe
           name: canonical.canonical_name,
           rating: ratingState ? Math.round(ratingState.rating) : 1500,
           ratingDeviation: ratingState ? Math.round(ratingState.rating_deviation) : 350,
-          category: canonical.category as any,
+          category: undefined,
         },
       };
     }

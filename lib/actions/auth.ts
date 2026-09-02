@@ -14,6 +14,7 @@ import {
 } from '@/lib/auth/verification-code';
 import { sendOtpEmail } from '@/lib/email/resend';
 import { isSuperAdminProfile, isApprovedStaff } from '@/lib/auth/roles';
+import type { ProfileRow } from '@/lib/types/database';
 
 export interface RequestOtpResult {
   success: boolean;
@@ -42,7 +43,7 @@ export async function requestLoginOtpAction(email: string): Promise<RequestOtpRe
     const code = generateVerificationCode();
 
     // Log para depuración en consola restringido a desarrollo y test
-    if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV !== 'production') {
       console.log('🔑 [OTP GENERADO]:', { email: cleanEmail, code });
     }
 
@@ -73,7 +74,7 @@ export async function requestLoginOtpAction(email: string): Promise<RequestOtpRe
       email: cleanEmail,
       devCode: process.env.NODE_ENV !== 'production' ? code : undefined,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       success: false,
       error: 'Ha ocurrido un problema al enviar el enlace. Espera un momento o solicita un nuevo código.',
@@ -151,7 +152,14 @@ export async function verifyLoginOtpAction(formData: {
         updated_at: new Date().toISOString(),
       };
       await admin.from('profiles').insert(newProfile);
-      profile = newProfile as any;
+      profile = {
+        id: newProfile.id,
+        role: newProfile.role,
+        name: newProfile.name,
+        nickname: newProfile.nickname,
+        email: newProfile.email,
+        admin_status: newProfile.admin_status,
+      };
     }
 
     const role = isSuperAdmin ? 'super_admin' : (profile?.role || 'player');
@@ -172,11 +180,11 @@ export async function verifyLoginOtpAction(formData: {
       role,
       destination: shouldRouteToStaffArea ? '/admin' : '/me',
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       success: false,
       destination: '/login',
-      error: err?.message || 'Error verificando código de acceso',
+      error: err instanceof Error ? err.message : 'Error verificando código de acceso',
     };
   }
 }

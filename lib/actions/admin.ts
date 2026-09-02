@@ -8,7 +8,9 @@ import { determineAgeCategory } from '@/lib/engine/categories';
 import { getPlayerSession } from '@/lib/auth/player-session';
 import type { ActionResponse } from './tournament';
 
-import { isSuperAdminProfile, isApprovedAdmin, isApprovedStaff, authorizeRoleChange } from '@/lib/auth/roles';
+import { isSuperAdminProfile, isApprovedAdmin, isApprovedStaff, authorizeRoleChange, evaluateUserPermissions } from '@/lib/auth/roles';
+import type { MatchStage } from '@/lib/engine/constants';
+import { z } from 'zod';
 export { authorizeRoleChange };
 
 /** Helper to verify if user has admin/referee privileges based solely on database RBAC */
@@ -33,9 +35,7 @@ export async function verifyAdminUser(): Promise<{
     .eq('id', user.id)
     .single();
 
-  const isSuperAdmin = isSuperAdminProfile({ email: user.email, role: profile?.role });
-  const isAdmin = isSuperAdmin || isApprovedAdmin(profile);
-  const isReferee = profile?.role === 'referee';
+  const { isSuperAdmin, isAdmin, isReferee } = evaluateUserPermissions(profile, user.email);
 
   return {
     authorized: isAdmin || isReferee,
@@ -61,6 +61,11 @@ export async function updateUserRoleAction(
   newRole: 'player' | 'referee' | 'admin'
 ): Promise<ActionResponse> {
   try {
+    const parsedInput = z.object({
+      targetUserId: z.string().uuid('ID de usuario inválido'),
+      newRole: z.enum(['player', 'referee', 'admin']),
+    }).parse({ targetUserId, newRole });
+
     const supabase = await createClient();
     const adminClient = createAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -69,7 +74,7 @@ export async function updateUserRoleAction(
     const callerEmail = user?.email || playerSession?.email;
     const cleanCallerEmail = callerEmail?.toLowerCase().trim();
 
-    let callerProfile: any = null;
+    let callerProfile: { id: string; role: string; email: string | null; admin_status: string | null } | null = null;
     if (cleanCallerEmail) {
       const { data: profile } = await adminClient
         .from('profiles')
@@ -90,14 +95,14 @@ export async function updateUserRoleAction(
     const { data: targetProfile } = await adminClient
       .from('profiles')
       .select('id, email, role, admin_status')
-      .eq('id', targetUserId)
+      .eq('id', parsedInput.targetUserId)
       .maybeSingle();
 
     if (!targetProfile) {
       return { success: false, error: 'Usuario no encontrado.' };
     }
 
-    const authResult = authorizeRoleChange(caller, targetProfile, newRole);
+    const authResult = authorizeRoleChange(caller, targetProfile, parsedInput.newRole);
     if (!authResult.allowed) {
       return {
         success: false,
@@ -105,16 +110,16 @@ export async function updateUserRoleAction(
       };
     }
 
-    const newAdminStatus = newRole === 'player' ? null : 'approved';
+    const newAdminStatus = parsedInput.newRole === 'player' ? null : 'approved';
 
     const { error } = await adminClient
       .from('profiles')
       .update({
-        role: newRole,
+        role: parsedInput.newRole,
         admin_status: newAdminStatus,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', targetUserId);
+      .eq('id', parsedInput.targetUserId);
 
     if (error) {
       return { success: false, error: `Error actualizando rol: ${error.message}` };
@@ -209,10 +214,11 @@ export async function assignMatchTableAction(
 
 /**
  * Superadmin: Approve a user as administrator.
- * Exclusively callable by guillermoriveraterriza@gmail.com / super_admin.
+ * Exclusively callable by ROOT_SUPERADMIN_EMAIL / super_admin.
  */
 export async function approveAdminAction(targetUserId: string): Promise<ActionResponse> {
   try {
+    const validTargetId = z.string().uuid('ID de usuario inválido').parse(targetUserId);
     const auth = await verifyAdminUser();
     if (!auth.isSuperAdmin) {
       return { success: false, error: 'Solo el Superadmin principal puede otorgar permisos de administrador.' };
@@ -225,7 +231,7 @@ export async function approveAdminAction(targetUserId: string): Promise<ActionRe
         role: 'admin',
         admin_status: 'approved',
       })
-      .eq('id', targetUserId);
+      .eq('id', validTargetId);
 
     if (error) return { success: false, error: error.message };
 
@@ -233,7 +239,7 @@ export async function approveAdminAction(targetUserId: string): Promise<ActionRe
       actor_id: auth.userId,
       action: 'approve_admin',
       entity_type: 'profiles',
-      entity_id: targetUserId,
+      entity_id: validTargetId,
       new_data: { role: 'admin', admin_status: 'approved' },
     });
 
@@ -246,10 +252,11 @@ export async function approveAdminAction(targetUserId: string): Promise<ActionRe
 
 /**
  * Superadmin: Revoke administrator permissions from a user.
- * Exclusively callable by guillermoriveraterriza@gmail.com / super_admin.
+ * Exclusively callable by ROOT_SUPERADMIN_EMAIL / super_admin.
  */
 export async function revokeAdminAction(targetUserId: string): Promise<ActionResponse> {
   try {
+    const validTargetId = z.string().uuid('ID de usuario inválido').parse(targetUserId);
     const auth = await verifyAdminUser();
     if (!auth.isSuperAdmin) {
       return { success: false, error: 'Solo el Superadmin principal puede revocar permisos de administrador.' };
@@ -262,7 +269,7 @@ export async function revokeAdminAction(targetUserId: string): Promise<ActionRes
         role: 'player',
         admin_status: 'rejected',
       })
-      .eq('id', targetUserId);
+      .eq('id', validTargetId);
 
     if (error) return { success: false, error: error.message };
 
@@ -270,7 +277,7 @@ export async function revokeAdminAction(targetUserId: string): Promise<ActionRes
       actor_id: auth.userId,
       action: 'revoke_admin',
       entity_type: 'profiles',
-      entity_id: targetUserId,
+      entity_id: validTargetId,
       new_data: { role: 'player', admin_status: 'rejected' },
     });
 
@@ -375,7 +382,7 @@ export async function resolveDisputeAction(input: {
         entity_type: 'matches',
         entity_id: parsed.matchId,
         previous_data: { status: match.status },
-        new_data: { status: 'pending', notes: parsed.notes },
+        new_data: { status: 'scheduled', notes: parsed.notes },
       });
     } else if (parsed.resolution === 'accept_score') {
       const winnerNumber = determineWinner(match.score_player1 ?? 0, match.score_player2 ?? 0);
@@ -384,7 +391,7 @@ export async function resolveDisputeAction(input: {
       await supabase
         .from('matches')
         .update({
-          status: 'confirmed',
+          status: 'completed',
           winner_id: winnerId,
           confirmed_by: auth.userId,
           confirmed_at: new Date().toISOString(),
@@ -397,14 +404,14 @@ export async function resolveDisputeAction(input: {
         entity_type: 'matches',
         entity_id: parsed.matchId,
         previous_data: { status: match.status },
-        new_data: { status: 'confirmed', winner_id: winnerId, notes: parsed.notes },
+        new_data: { status: 'completed', winner_id: winnerId, notes: parsed.notes },
       });
     } else if (parsed.resolution === 'modify_score') {
       if (parsed.scorePlayer1 === undefined || parsed.scorePlayer2 === undefined) {
         return { success: false, error: 'Scores required for modify_score resolution' };
       }
 
-      const validation = validateScoreForStage(parsed.scorePlayer1, parsed.scorePlayer2, match.stage as any);
+      const validation = validateScoreForStage(parsed.scorePlayer1, parsed.scorePlayer2, match.stage as MatchStage);
       if (!validation.valid) {
         return { success: false, error: validation.reason || 'Invalid score' };
       }
@@ -415,7 +422,7 @@ export async function resolveDisputeAction(input: {
       await supabase
         .from('matches')
         .update({
-          status: 'confirmed',
+          status: 'completed',
           score_player1: parsed.scorePlayer1,
           score_player2: parsed.scorePlayer2,
           winner_id: winnerId,
@@ -431,7 +438,7 @@ export async function resolveDisputeAction(input: {
         entity_id: parsed.matchId,
         previous_data: { status: match.status, s1: match.score_player1, s2: match.score_player2 },
         new_data: {
-          status: 'confirmed',
+          status: 'completed',
           score_player1: parsed.scorePlayer1,
           score_player2: parsed.scorePlayer2,
           winner_id: winnerId,
@@ -607,7 +614,13 @@ export async function deleteParticipantAction(
 
       if (matches) {
         for (const m of matches) {
-          if (m.status === 'pending' || m.status === 'submitted') {
+          if (
+            m.status === 'scheduled' ||
+            m.status === 'pending' ||
+            m.status === 'in_progress' ||
+            m.status === 'pending_verification' ||
+            m.status === 'submitted'
+          ) {
             // Process Walkover (W.O.): Opponent wins with standard default score
             const isP1 = m.player1_id === input.userId;
             const winnerId = isP1 ? m.player2_id : m.player1_id;
@@ -616,7 +629,7 @@ export async function deleteParticipantAction(
             await admin
               .from('matches')
               .update({
-                status: 'confirmed',
+                status: 'walkover',
                 winner_id: winnerId,
                 score_player1: isP1 ? 0 : targetScore,
                 score_player2: isP1 ? targetScore : 0,

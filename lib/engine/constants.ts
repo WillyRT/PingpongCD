@@ -61,5 +61,6 @@ export function getTargetPointsForStage(stage: MatchStage): number {
 }
 
 // Superadmin Principal
-export const SUPER_ADMIN_EMAIL = 'guillermoriveraterriza@gmail.com';
+export const SUPER_ADMIN_EMAIL =
+  process.env.ROOT_SUPERADMIN_EMAIL?.toLowerCase().trim() || 'guillermoriveraterriza@gmail.com';
 

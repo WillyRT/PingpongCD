@@ -510,7 +510,7 @@ export async function configureQualifiersAndGenerateBracketAction(
       .eq('tournament_id', tournamentId)
       .eq('stage', 'group')
       .eq('category', category)
-      .eq('status', 'confirmed');
+      .in('status', ['completed', 'confirmed']);
 
     if (mError) return { success: false, error: 'Failed to fetch confirmed matches' };
 
@@ -673,7 +673,7 @@ export async function finishTournamentAction(tournamentId: string): Promise<Acti
       .from('matches')
       .select('*')
       .eq('tournament_id', tournamentId)
-      .eq('status', 'confirmed');
+      .in('status', ['completed', 'confirmed']);
 
     const { data: participants } = await supabase
       .from('tournament_participants')
@@ -859,7 +859,7 @@ export async function promoteSub14FinalistsAction(
         {
           tournament_id: seniorTournamentId,
           user_id: f.playerId,
-          category: 'sub14_promoted' as any,
+          category: 'sub14_promoted',
           confirmed_at: new Date().toISOString(),
         },
         { onConflict: 'tournament_id, user_id' }
@@ -937,9 +937,9 @@ export async function deleteTournamentAction(tournamentId: string): Promise<Acti
     revalidatePath('/admin');
 
     return { success: true, data: { deleted: true } };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error al eliminar torneo:', error);
-    return { success: false, error: error?.message || 'Error al eliminar el torneo' };
+    return { success: false, error: error instanceof Error ? error.message : 'Error al eliminar el torneo' };
   }
 }
 

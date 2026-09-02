@@ -140,7 +140,7 @@ export function MatchCard({ match, currentUserId, isAdmin = false }: MatchCardPr
       {/* Actions */}
       <div className="pt-2 border-t border-[var(--border)] flex flex-wrap gap-2">
         {/* Admin Override */}
-        {isAdmin && match.status !== 'confirmed' && (
+        {isAdmin && match.status !== 'confirmed' && match.status !== 'completed' && (
           <button
             type="button"
             disabled={loading}
@@ -152,7 +152,7 @@ export function MatchCard({ match, currentUserId, isAdmin = false }: MatchCardPr
           </button>
         )}
 
-        {match.status === 'pending' && isParticipant && !isAdmin && (
+        {(match.status === 'scheduled' || match.status === 'in_progress' || match.status === 'pending') && isParticipant && !isAdmin && (
           <Link
             href={`/player/report/${match.id}`}
             className="w-full py-2 rounded-lg gradient-primary text-white text-xs font-semibold text-center transition hover:scale-[1.01]"

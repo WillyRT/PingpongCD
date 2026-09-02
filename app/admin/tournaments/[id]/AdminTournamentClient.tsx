@@ -658,7 +658,7 @@ export function AdminTournamentClient({
               </div>
               <div className="p-4 rounded-xl bg-[var(--card)] border border-[var(--border)] text-center">
                 <div className="text-2xl font-bold text-[var(--accent)]">
-                  {filteredMatches.filter((m) => m.status === 'confirmed').length} / {filteredMatches.length}
+                  {filteredMatches.filter((m) => m.status === 'completed' || m.status === 'confirmed').length} / {filteredMatches.length}
                 </div>
                 <div className="text-xs text-[var(--muted-foreground)] mt-1">Partidos Jugados</div>
               </div>
@@ -836,7 +836,7 @@ export function AdminTournamentClient({
                 const groupPlayers = filteredParticipants.filter((p) => p.group_id === grp.id);
                 const playerIds = groupPlayers.map((p) => p.user_id);
                 const groupMatchesConfirmed: ConfirmedMatch[] = filteredMatches
-                  .filter((m) => m.group_id === grp.id && m.status === 'confirmed')
+                  .filter((m) => m.group_id === grp.id && (m.status === 'completed' || m.status === 'confirmed'))
                   .map((m) => ({
                     player1Id: m.player1_id,
                     player2Id: m.player2_id,

@@ -132,7 +132,7 @@ export default async function PlayerPortalPage() {
   let currentStreak = 0;
   let streakCounted = false;
 
-  const confirmedMatches = (allMatches || []).filter((m) => m.status === 'confirmed');
+  const confirmedMatches = (allMatches || []).filter((m) => m.status === 'completed' || m.status === 'confirmed');
 
   for (const m of confirmedMatches) {
     const isWinner = m.winner_id === profile.id;
@@ -202,7 +202,7 @@ export default async function PlayerPortalPage() {
       .from('matches')
       .select('*')
       .eq('group_id', activeParticipation.group_id)
-      .eq('status', 'confirmed');
+      .in('status', ['completed', 'confirmed']);
 
     const { data: grpParticipants } = await admin
       .from('tournament_participants')

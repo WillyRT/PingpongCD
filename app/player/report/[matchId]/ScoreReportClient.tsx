@@ -60,8 +60,8 @@ export function ScoreReportClient({ match, currentUserId, isPlayer1 }: ScoreRepo
     setLoading(false);
   };
 
-  // State 1: Confirmed
-  if (match.status === 'confirmed') {
+  // State 1: Completed / Confirmed
+  if (match.status === 'completed' || match.status === 'confirmed') {
     return (
       <div className="p-8 rounded-2xl bg-[var(--card)] border border-[var(--border)] text-center space-y-4 animate-slide-up">
         <div className="text-5xl">🏆</div>

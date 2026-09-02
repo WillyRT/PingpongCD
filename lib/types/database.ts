@@ -229,6 +229,8 @@ export interface MatchRow {
   reported_by_id?: string | null;
   verified_by_id?: string | null;
   table_number?: number | null;
+  next_match_id?: string | null;
+  next_slot?: number | null;
   dispute_reason?: string | null;
   dispute_evidence_url?: string | null;
   status:

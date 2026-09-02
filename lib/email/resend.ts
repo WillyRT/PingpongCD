@@ -7,7 +7,7 @@ export const resend = resendApiKey ? new Resend(resendApiKey) : null;
 export const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
 export async function sendOtpEmail(email: string, code: string): Promise<{ success: boolean; error?: string }> {
-  if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV !== 'production') {
     console.log('🔑 [OTP GENERADO]:', { email, code });
   }
 
@@ -44,11 +44,14 @@ export async function sendOtpEmail(email: string, code: string): Promise<{ succe
       }
       return { success: false, error: error.message };
     } else {
-      console.log('✅ [Resend Success]: Correo entregado a Resend con ID:', data?.id);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('✅ [Resend Success]: Correo entregado a Resend con ID:', data?.id);
+      }
       return { success: true };
     }
-  } catch (err: any) {
-    console.error('❌ [Resend Exception]:', err?.message || err);
-    return { success: false, error: err?.message };
+  } catch (err: unknown) {
+    console.error('❌ [Resend Exception]:', err instanceof Error ? err.message : err);
+    return { success: false, error: err instanceof Error ? err.message : 'Error enviando email' };
   }
 }
+

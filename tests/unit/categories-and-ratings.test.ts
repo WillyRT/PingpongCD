@@ -27,10 +27,10 @@ describe('Age Categorization (Sub-14 vs +14)', () => {
   });
 
   it('should throw an error on corrupt or invalid birth dates instead of silently falling back', () => {
-    expect(() => determineAgeCategory('invalid-date')).toThrow('Fecha de nacimiento o edad inválida');
-    expect(() => determineAgeCategory('not-a-date')).toThrow('Fecha de nacimiento o edad inválida');
-    expect(() => determineAgeCategory(new Date('invalid'))).toThrow('Fecha de nacimiento o edad inválida');
-    expect(() => determineAgeCategory('2024-99-99')).toThrow('Fecha de nacimiento o edad inválida');
+    expect(() => determineAgeCategory('invalid-date')).toThrow('Fecha o edad inválida');
+    expect(() => determineAgeCategory('not-a-date')).toThrow('Fecha o edad inválida');
+    expect(() => determineAgeCategory(new Date('invalid'))).toThrow('Fecha o edad inválida');
+    expect(() => determineAgeCategory('2024-99-99')).toThrow('Fecha o edad inválida');
   });
 
   it('should provide clear category labels', () => {

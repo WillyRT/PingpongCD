@@ -11,6 +11,8 @@ import { isGroupComplete } from '@/lib/engine/tournament-state';
 import { isSuperAdminProfile, isApprovedStaff, canConfirmOrDisputeMatch } from '@/lib/auth/roles';
 export { canConfirmOrDisputeMatch };
 import type { ActionResponse } from './tournament';
+import type { MatchRow } from '@/lib/types/database';
+import type { MatchStage } from '@/lib/engine/constants';
 
 /** Helper to check if caller has referee, admin or super_admin permissions */
 async function checkRefereeOrAdmin(userId?: string | null): Promise<boolean> {
@@ -70,7 +72,7 @@ export async function reportMatchScoreAction(input: {
     const validation = validateScoreForStage(
       parsed.scorePlayer1,
       parsed.scorePlayer2,
-      match.stage as any
+      match.stage as MatchStage
     );
 
     if (!validation.valid) {
@@ -235,8 +237,8 @@ export async function verifyMatchScoreAction(input: {
 
 /** Helper to finalize match, advance bracket, update Glicko-2 ratings and free table */
 async function finalizeAndConfirmMatch(
-  admin: any,
-  match: any,
+  admin: ReturnType<typeof createAdminClient>,
+  match: MatchRow,
   score1: number,
   score2: number,
   verifierId: string,
@@ -261,7 +263,7 @@ async function finalizeAndConfirmMatch(
   await admin
     .from('matches')
     .update({
-      status: 'confirmed',
+      status: 'completed',
       score_player1: score1,
       score_player2: score2,
       winner_id: winnerId,
@@ -329,10 +331,10 @@ async function finalizeAndConfirmMatch(
       .single();
 
     if (groupMatches && grp) {
-      const confirmed = groupMatches.filter((m: any) => m.status === 'confirmed' || m.status === 'completed').length;
-      const pending = groupMatches.filter((m: any) => m.status === 'pending' || m.status === 'scheduled').length;
-      const submitted = groupMatches.filter((m: any) => m.status === 'submitted' || m.status === 'pending_verification').length;
-      const disputed = groupMatches.filter((m: any) => m.status === 'disputed').length;
+      const confirmed = groupMatches.filter((m) => m.status === 'completed' || m.status === 'confirmed').length;
+      const pending = groupMatches.filter((m) => m.status === 'scheduled' || m.status === 'pending' || m.status === 'in_progress').length;
+      const submitted = groupMatches.filter((m) => m.status === 'pending_verification' || m.status === 'submitted').length;
+      const disputed = groupMatches.filter((m) => m.status === 'disputed').length;
 
       if (isGroupComplete(confirmed, grp.expected_matches, pending, submitted, disputed)) {
         await admin
