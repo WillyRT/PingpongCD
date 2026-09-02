@@ -72,9 +72,17 @@ export function PublicJoinClient({
     setBirthDateOrAge(val);
     const parsedNum = Number(val);
     if (!isNaN(parsedNum) && parsedNum > 0) {
-      setCategory(determineAgeCategory(parsedNum));
+      try {
+        setCategory(determineAgeCategory(parsedNum));
+      } catch {
+        // partial input
+      }
     } else if (val.includes('-')) {
-      setCategory(determineAgeCategory(val));
+      try {
+        setCategory(determineAgeCategory(val));
+      } catch {
+        // partial input
+      }
     }
   };
 
@@ -343,7 +351,7 @@ export function PublicJoinClient({
             <div className="flex justify-between">
               <span className="text-[var(--muted-foreground)]">Categoría:</span>
               <span className="font-bold text-[var(--primary)]">
-                {getCategoryLabel(existingProfile.category as AgeCategory)}
+                {existingProfile.category ? getCategoryLabel(existingProfile.category) : 'General'}
               </span>
             </div>
           </div>

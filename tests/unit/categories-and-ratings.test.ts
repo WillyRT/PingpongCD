@@ -26,6 +26,13 @@ describe('Age Categorization (Sub-14 vs +14)', () => {
     expect(determineAgeCategory(twentyYearsAgo)).toBe('plus14');
   });
 
+  it('should throw an error on corrupt or invalid birth dates instead of silently falling back', () => {
+    expect(() => determineAgeCategory('invalid-date')).toThrow('Fecha de nacimiento o edad inválida');
+    expect(() => determineAgeCategory('not-a-date')).toThrow('Fecha de nacimiento o edad inválida');
+    expect(() => determineAgeCategory(new Date('invalid'))).toThrow('Fecha de nacimiento o edad inválida');
+    expect(() => determineAgeCategory('2024-99-99')).toThrow('Fecha de nacimiento o edad inválida');
+  });
+
   it('should provide clear category labels', () => {
     expect(getCategoryLabel('sub14')).toBe('Sub-14 (Junior)');
     expect(getCategoryLabel('plus14')).toBe('Absoluta (+14 / Senior)');

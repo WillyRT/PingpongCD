@@ -49,8 +49,8 @@ export async function createTournamentAction(formData: {
       .maybeSingle();
 
     const isAuthorized =
-      isSuperAdminProfile({ email: cleanEmail, role: profile?.role }) ||
-      isApprovedAdmin(profile);
+      profile?.role === 'super_admin' ||
+      (profile?.role === 'admin' && profile?.admin_status === 'approved');
 
     if (!isAuthorized) {
       return { success: false, error: 'Acceso denegado: Solo administradores autorizados pueden crear torneos.' };
@@ -133,8 +133,8 @@ export async function openRegistrationAction(tournamentId: string): Promise<Acti
       .maybeSingle();
 
     const isAuthorized =
-      isSuperAdminProfile({ email: cleanEmail, role: profile?.role }) ||
-      isApprovedAdmin(profile);
+      profile?.role === 'super_admin' ||
+      (profile?.role === 'admin' && profile?.admin_status === 'approved');
 
     if (!isAuthorized) {
       return { success: false, error: 'Solo administradores autorizados pueden abrir inscripciones.' };
@@ -249,7 +249,7 @@ export async function joinTournamentAction(
 
     if (!tourney) return { success: false, error: 'Tournament not found' };
 
-    const assignedCategory = category || (profile.category as AgeCategory) || 'plus14';
+    const assignedCategory = category || profile.category || 'plus14';
 
     // Insert into tournament_participants via admin client (100% reliable, no RLS block)
     const { error: insertError } = await admin
@@ -329,7 +329,7 @@ export async function generateGroupsAndScheduleAction(
     // Determine categories present
     const categories: AgeCategory[] = targetCategory
       ? [isSeniorEligible(targetCategory) ? 'plus14' : targetCategory]
-      : Array.from(new Set(participants.map((p) => isSeniorEligible(p.category) ? 'plus14' : (p.category ?? 'plus14') as AgeCategory)));
+      : Array.from(new Set(participants.map((p) => isSeniorEligible(p.category) ? 'plus14' : (p.category ?? 'plus14'))));
 
     for (const cat of categories) {
       const catParticipants = participants.filter((p) =>
@@ -629,8 +629,9 @@ export async function finishTournamentAction(tournamentId: string): Promise<Acti
       .eq('id', user.id)
       .maybeSingle();
 
-    const isSuperAdmin = isSuperAdminProfile({ email: user.email, role: profile?.role });
-    const isAdmin = isSuperAdmin || isApprovedAdmin(profile);
+    const isAdmin =
+      profile?.role === 'super_admin' ||
+      (profile?.role === 'admin' && profile?.admin_status === 'approved');
 
     if (!isAdmin) {
       return { success: false, error: 'Solo administradores aprobados pueden finalizar torneos.' };
@@ -902,8 +903,8 @@ export async function deleteTournamentAction(tournamentId: string): Promise<Acti
       .maybeSingle();
 
     const isAdmin =
-      isSuperAdminProfile({ email: cleanEmail, role: profile?.role }) ||
-      isApprovedAdmin(profile);
+      profile?.role === 'super_admin' ||
+      (profile?.role === 'admin' && profile?.admin_status === 'approved');
 
     if (!isAdmin) {
       return { success: false, error: 'Permisos insuficientes para eliminar torneos' };
@@ -921,10 +922,7 @@ export async function deleteTournamentAction(tournamentId: string): Promise<Acti
     // 4. Eliminar configuración del torneo
     await adminClient.from('tournament_config').delete().eq('tournament_id', tournamentId);
 
-    // 5. Eliminar auditoría o registros relacionados si existiesen
-    await adminClient.from('audit_logs').delete().eq('entity_id', tournamentId);
-
-    // 6. Eliminar el registro del torneo
+    // 5. Eliminar el registro del torneo
     const { error: deleteError } = await adminClient
       .from('tournaments')
       .delete()

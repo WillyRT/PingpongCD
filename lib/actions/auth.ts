@@ -41,8 +41,10 @@ export async function requestLoginOtpAction(email: string): Promise<RequestOtpRe
 
     const code = generateVerificationCode();
 
-    // Log para depuración en consola requerido por especificación
-    console.log('🔑 [OTP GENERADO]:', { email: cleanEmail, code });
+    // Log para depuración en consola restringido a desarrollo y test
+    if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+      console.log('🔑 [OTP GENERADO]:', { email: cleanEmail, code });
+    }
 
     // Enviar correo vía Resend (no bloqueante si sandbox o sin API key)
     try {

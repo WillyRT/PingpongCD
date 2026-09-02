@@ -7,7 +7,9 @@ export const resend = resendApiKey ? new Resend(resendApiKey) : null;
 export const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
 export async function sendOtpEmail(email: string, code: string): Promise<{ success: boolean; error?: string }> {
-  console.log('🔑 [OTP GENERADO]:', { email, code });
+  if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+    console.log('🔑 [OTP GENERADO]:', { email, code });
+  }
 
   if (!resend) {
     console.warn('[Resend] RESEND_API_KEY no configurada. Se continúa con código en consola o código comodín 202600.');

@@ -309,7 +309,7 @@ export function AdminTournamentClient({
       email: prof?.email || '',
       birthDateOrAge: prof?.birth_date || '20',
       declaredLevel: p.declared_level ?? prof?.declared_level ?? 5.0,
-      category: (p.category as AgeCategory) || 'plus14',
+      category: p.category || 'plus14',
     });
   };
 
@@ -715,7 +715,7 @@ export function AdminTournamentClient({
                   {displayedParticipants.map((p, idx) => {
                     const prof = p.profiles;
                     const displayName = prof?.nickname || prof?.name || 'Jugador';
-                    const categoryLabel = p.category ? getCategoryLabel(p.category as AgeCategory) : 'General';
+                    const categoryLabel = p.category ? getCategoryLabel(p.category) : 'General';
                     const isSub14 = p.category === 'sub14';
 
                     return (
@@ -1074,7 +1074,12 @@ export function AdminTournamentClient({
                   value={editingParticipant.birthDateOrAge}
                   onChange={(e) => {
                     const val = e.target.value;
-                    const cat = determineAgeCategory(val);
+                    let cat = editingParticipant.category;
+                    try {
+                      cat = determineAgeCategory(val);
+                    } catch {
+                      // Keep current while typing
+                    }
                     setEditingParticipant({
                       ...editingParticipant,
                       birthDateOrAge: val,
@@ -1268,7 +1273,13 @@ export function AdminTournamentClient({
                     className="w-full px-3 py-2 rounded-xl bg-[var(--secondary)] border border-[var(--border)] text-xs focus:outline-none focus:border-[var(--primary)]"
                   />
                   <span className="text-[10px] text-[var(--muted-foreground)] mt-0.5 block">
-                    Categoría calculada: <strong className="text-white">{determineAgeCategory(newParticipant.birthDateOrAge) === 'sub14' ? 'Sub-14 (Junior)' : 'Absoluta (+14)'}</strong>
+                    Categoría calculada: <strong className="text-white">{(() => {
+                      try {
+                        return determineAgeCategory(newParticipant.birthDateOrAge) === 'sub14' ? 'Sub-14 (Junior)' : 'Absoluta (+14)';
+                      } catch {
+                        return 'Absoluta (+14)';
+                      }
+                    })()}</strong>
                   </span>
                 </div>
                 <div>

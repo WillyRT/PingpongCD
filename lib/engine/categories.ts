@@ -46,8 +46,7 @@ export function determineAgeCategory(
 
   const birth = new Date(birthDateOrAge);
   if (isNaN(birth.getTime())) {
-    // Default fallback to plus14 if invalid date
-    return 'plus14';
+    throw new Error('Fecha de nacimiento o edad inválida');
   }
 
   const ref = referenceDate ? new Date(referenceDate) : new Date();

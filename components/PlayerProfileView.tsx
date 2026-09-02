@@ -217,7 +217,7 @@ export function PlayerProfileView({
 
               <div className="text-xs text-[var(--muted-foreground)] flex flex-wrap items-center gap-2 mt-1">
                 <span className="font-semibold text-white px-2 py-0.5 rounded bg-[var(--secondary)]">
-                  {profile.category ? getCategoryLabel(profile.category as AgeCategory) : 'Categoría General'}
+                  {profile.category ? getCategoryLabel(profile.category) : 'Categoría General'}
                 </span>
 
                 <span>•</span>

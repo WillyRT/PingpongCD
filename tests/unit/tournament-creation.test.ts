@@ -293,6 +293,7 @@ describe('Eliminación en Cascada de Torneos (deleteTournamentAction)', () => {
     expect(mockParticipantsDelete).toHaveBeenCalled();
     expect(mockTournamentDelete).toHaveBeenCalled();
     expect(mockTournamentDeleteEq).toHaveBeenCalledWith('id', 'target-tourney-123');
+    expect(mockAuditDelete).not.toHaveBeenCalled();
 
     expect(revalidatePath).toHaveBeenCalledWith('/');
     expect(revalidatePath).toHaveBeenCalledWith('/tournaments');

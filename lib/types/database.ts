@@ -4,6 +4,8 @@
  * Domain types in domain.ts use camelCase.
  */
 
+import type { AgeCategory } from './domain';
+
 export type Json =
   | string
   | number
@@ -132,7 +134,7 @@ export interface ProfileRow {
   admin_status: 'none' | 'pending' | 'approved' | 'rejected';
   declared_level: number | null;
   birth_date: string | null;
-  category: 'sub14' | 'plus14' | null;
+  category: AgeCategory | null;
   rating: number;
   rating_deviation: number;
   volatility: number;
@@ -184,7 +186,7 @@ export type TournamentConfigUpdate = Partial<Omit<TournamentConfigRow, 'id' | 't
 export interface TournamentGroupRow {
   id: string;
   tournament_id: string;
-  category: 'sub14' | 'plus14' | 'sub14_promoted';
+  category: AgeCategory;
   group_code: string;
   status: 'pending' | 'active' | 'completed';
   expected_matches: number;
@@ -198,7 +200,7 @@ export type TournamentGroupUpdate = Partial<Omit<TournamentGroupRow, 'id' | 'tou
 export interface TournamentParticipantRow {
   tournament_id: string;
   user_id: string;
-  category: 'sub14' | 'plus14' | 'sub14_promoted';
+  category: AgeCategory;
   declared_level: number | null;
   group_id: string | null;
   seed_number: number | null;
@@ -213,7 +215,7 @@ export type TournamentParticipantUpdate = Partial<Omit<TournamentParticipantRow,
 export interface MatchRow {
   id: string;
   tournament_id: string;
-  category: 'sub14' | 'plus14' | 'sub14_promoted';
+  category: AgeCategory;
   stage: 'group' | 'round_of_16' | 'quarterfinal' | 'semifinal' | 'final';
   group_id: string | null;
   bracket_match_id: string | null;

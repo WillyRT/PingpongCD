@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { requestLoginOtpAction, verifyLoginOtpAction } from '@/lib/actions/auth';
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -34,6 +34,22 @@ describe('Passwordless OTP & Resend Auth Actions (lib/actions/auth.ts)', () => {
       expect.objectContaining({ email: 'test@example.com', code: expect.any(String) })
     );
     consoleSpy.mockRestore();
+  });
+
+  it('does not log OTP in production environment', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
+    const consoleSpy = vi.spyOn(console, 'log');
+
+    await requestLoginOtpAction('test@example.com');
+
+    expect(consoleSpy).not.toHaveBeenCalledWith(
+      '🔑 [OTP GENERADO]:',
+      expect.anything()
+    );
+
+    consoleSpy.mockRestore();
+    (process.env as Record<string, string | undefined>).NODE_ENV = originalEnv;
   });
 
   it('verifyLoginOtpAction logs in successfully using master code 202600 for superadmin', async () => {
