@@ -56,15 +56,30 @@ export async function verifyAdminUser(): Promise<{
  * - Updates role and sets admin_status ('approved' for admin/referee, null for player).
  * - Revalidates /admin, /admin/users, /tables, /me.
  */
+export interface UpdateUserRoleInput {
+  targetUserId: string;
+  newRole: 'player' | 'referee' | 'admin';
+}
+
 export async function updateUserRoleAction(
-  targetUserId: string,
-  newRole: 'player' | 'referee' | 'admin'
-): Promise<ActionResponse> {
+  inputOrTargetUserId: string | UpdateUserRoleInput,
+  maybeNewRole?: 'player' | 'referee' | 'admin'
+): Promise<{ success: boolean; error?: string }> {
   try {
+    const rawTargetUserId =
+      typeof inputOrTargetUserId === 'object' && inputOrTargetUserId !== null
+        ? inputOrTargetUserId.targetUserId
+        : inputOrTargetUserId;
+
+    const rawNewRole =
+      typeof inputOrTargetUserId === 'object' && inputOrTargetUserId !== null
+        ? inputOrTargetUserId.newRole
+        : maybeNewRole;
+
     const parsedInput = z.object({
       targetUserId: z.string().uuid('ID de usuario inválido'),
       newRole: z.enum(['player', 'referee', 'admin']),
-    }).parse({ targetUserId, newRole });
+    }).parse({ targetUserId: rawTargetUserId, newRole: rawNewRole });
 
     const supabase = await createClient();
     const adminClient = createAdminClient();
@@ -130,9 +145,9 @@ export async function updateUserRoleAction(
         actor_id: user?.id || playerSession?.playerId || callerProfile?.id || 'staff',
         action: 'update_user_role',
         entity_type: 'profiles',
-        entity_id: targetUserId,
+        entity_id: parsedInput.targetUserId,
         previous_data: { role: targetProfile.role, admin_status: targetProfile.admin_status },
-        new_data: { role: newRole, admin_status: newAdminStatus },
+        new_data: { role: parsedInput.newRole, admin_status: newAdminStatus },
       });
     } catch {
       // Audit log optional
