@@ -1,14 +1,15 @@
-﻿import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { validateRedirectUrl } from '../../app/auth/callback/route';
-import { getSigningSecret } from '../../lib/auth/player-session';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { validateRedirectUrl } from '@/app/auth/callback/route';
+import { getSigningSecret } from '@/lib/auth/player-session';
 import {
   SUPER_ADMIN_EMAIL,
   isSuperAdminProfile,
   isApprovedAdmin,
   isApprovedStaff,
+  evaluateUserPermissions,
   canConfirmOrDisputeMatch,
   authorizeRoleChange,
-} from '../../lib/auth/roles';
+} from '@/lib/auth/roles';
 
 describe('Security Invariants Suite (Blindaje de Seguridad Permanente)', () => {
   // =========================================================================
@@ -144,6 +145,12 @@ describe('Security Invariants Suite (Blindaje de Seguridad Permanente)', () => {
       // Tables page gatekeeping logic:
       const tablesAccess = isSuperAdminProfile(unapproved) || isApprovedStaff(unapproved);
       expect(tablesAccess).toBe(false);
+
+      // Centralized permission evaluator:
+      const perms = evaluateUserPermissions(unapproved, unapproved.email);
+      expect(perms.isSuperAdmin).toBe(false);
+      expect(perms.isAdmin).toBe(false);
+      expect(perms.isReferee).toBe(false);
     });
   });
 
