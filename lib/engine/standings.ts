@@ -196,7 +196,7 @@ function sortWithTiebreakers(
  * 4. Initial Tournament Glicko-2 Rating (eliminating circularity with live match results)
  * 5. Seed fallback
  */
-function resolveTwoWayTie(
+export function resolveTwoWayTie(
   players: [Omit<Standing, 'position'>, Omit<Standing, 'position'>],
   matches: ConfirmedMatch[],
   seeds: Map<string, number>,
@@ -253,7 +253,7 @@ function resolveTwoWayTie(
  * 4. Initial Tournament Glicko-2 Rating (Criterion 5)
  * 5. Seed fallback
  */
-function resolveMiniLeague(
+export function resolveMiniLeague(
   players: Omit<Standing, 'position'>[],
   matches: ConfirmedMatch[],
   seeds: Map<string, number>,

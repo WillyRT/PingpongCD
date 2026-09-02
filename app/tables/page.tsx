@@ -1,6 +1,6 @@
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { getPlayerSession } from '@/lib/auth/player-session';
-import { isSuperAdminProfile, isApprovedStaff } from '@/lib/auth/roles';
+import { evaluateUserPermissions } from '@/lib/auth/roles';
 import { TablesMonitorClient, type TableMonitorMatch } from '@/components/tables/TablesMonitorClient';
 import type { TournamentRow, TournamentGroupRow } from '@/lib/types/database';
 
@@ -27,9 +27,7 @@ export default async function TablesMonitorPage({ searchParams }: TablesPageProp
       .eq('email', cleanEmail)
       .maybeSingle();
 
-    isRefereeOrAdmin =
-      isSuperAdminProfile({ email: cleanEmail, role: profile?.role }) ||
-      isApprovedStaff(profile);
+    isRefereeOrAdmin = evaluateUserPermissions(profile, cleanEmail).isReferee;
   }
 
   // 2. Fetch all tournaments to allow switching

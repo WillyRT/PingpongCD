@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { isSuperAdminProfile, isApprovedAdmin } from '@/lib/auth/roles';
+import { evaluateUserPermissions, isSuperAdminProfile } from '@/lib/auth/roles';
 import { AdminUserManagement } from './AdminUserManagement';
 
 export default async function AdminDashboard() {
@@ -18,8 +18,7 @@ export default async function AdminDashboard() {
     .eq('email', cleanEmail)
     .maybeSingle();
 
-  const isSuperAdmin = isSuperAdminProfile({ email: cleanEmail, role: profile?.role });
-  const isAdmin = isSuperAdmin || isApprovedAdmin(profile);
+  const { isSuperAdmin, isAdmin } = evaluateUserPermissions(profile, cleanEmail);
 
   if (!isAdmin) {
     redirect('/?error=unauthorized');
@@ -71,8 +70,8 @@ export default async function AdminDashboard() {
                 href="/admin/users"
                 className="px-3.5 py-2 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold hover:bg-amber-500/30 transition flex items-center gap-1.5"
               >
-                <span>🛡️</span>
-                <span>Gestión de Staff y Árbitros</span>
+                <span>👥</span>
+                <span>Gestión de Staff</span>
               </Link>
             )}
             <Link
