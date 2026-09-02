@@ -8,7 +8,8 @@ import { validateScoreForStage, determineWinner } from '@/lib/engine/scoring';
 import { updateRatingsForMatch } from '@/lib/engine/rating';
 import { evaluateExpectedScore } from '@/lib/engine/analytics';
 import { isGroupComplete } from '@/lib/engine/tournament-state';
-import { isSuperAdminProfile, isApprovedStaff } from '@/lib/auth/roles';
+import { isSuperAdminProfile, isApprovedStaff, canConfirmOrDisputeMatch } from '@/lib/auth/roles';
+export { canConfirmOrDisputeMatch };
 import type { ActionResponse } from './tournament';
 
 /** Helper to check if caller has referee, admin or super_admin permissions */
@@ -164,13 +165,15 @@ export async function verifyMatchScoreAction(input: {
     }
 
     const isPrivileged = await checkRefereeOrAdmin(callerId);
+    const callerRole: 'player' | 'referee' | 'admin' | 'super_admin' = isPrivileged ? 'referee' : 'player';
+
+    if (!canConfirmOrDisputeMatch(match, callerId, callerRole)) {
+      return { success: false, error: '403 Forbidden: No autorizado para confirmar o impugnar este partido.' };
+    }
+
     const isParticipant = match.player1_id === callerId || match.player2_id === callerId;
     const reportedById = match.reported_by_id || match.reported_by;
     const isOpponent = isParticipant && callerId !== reportedById;
-
-    if (!isPrivileged && !isParticipant) {
-      return { success: false, error: '403 Forbidden: No autorizado para confirmar o impugnar este partido.' };
-    }
 
     if (input.action === 'confirm') {
       // Prevent self-confirmation unless referee/admin

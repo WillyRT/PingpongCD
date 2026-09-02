@@ -8,7 +8,8 @@ import { determineAgeCategory } from '@/lib/engine/categories';
 import { getPlayerSession } from '@/lib/auth/player-session';
 import type { ActionResponse } from './tournament';
 
-import { isSuperAdminProfile, isApprovedAdmin, isApprovedStaff } from '@/lib/auth/roles';
+import { isSuperAdminProfile, isApprovedAdmin, isApprovedStaff, authorizeRoleChange } from '@/lib/auth/roles';
+export { authorizeRoleChange };
 
 /** Helper to verify if user has admin/referee privileges based solely on database RBAC */
 export async function verifyAdminUser(): Promise<{
@@ -84,16 +85,7 @@ export async function updateUserRoleAction(
         .maybeSingle();
       callerProfile = profile;
     }
-
-    const isCallerSuperAdmin = isSuperAdminProfile(callerProfile || { email: cleanCallerEmail, role: undefined });
-    const isCallerApproved = isApprovedAdmin(callerProfile);
-
-    if (!isCallerSuperAdmin && !isCallerApproved) {
-      return {
-        success: false,
-        error: 'Acceso denegado: Se requieren permisos de administrador o superadministrador.',
-      };
-    }
+    const caller = callerProfile || (cleanCallerEmail ? { email: cleanCallerEmail, role: undefined } : null);
 
     const { data: targetProfile } = await adminClient
       .from('profiles')
@@ -105,28 +97,12 @@ export async function updateUserRoleAction(
       return { success: false, error: 'Usuario no encontrado.' };
     }
 
-    // Root superadmin protection
-    if (isSuperAdminProfile(targetProfile)) {
+    const authResult = authorizeRoleChange(caller, targetProfile, newRole);
+    if (!authResult.allowed) {
       return {
         success: false,
-        error: 'No se puede modificar el rol del Superadministrador principal.',
+        error: authResult.error,
       };
-    }
-
-    // Tiered permissions: regular admin checks
-    if (!isCallerSuperAdmin) {
-      if (targetProfile.role === 'admin' || targetProfile.role === 'super_admin') {
-        return {
-          success: false,
-          error: 'Solo el Superadministrador puede modificar a otros administradores.',
-        };
-      }
-      if (newRole === 'admin') {
-        return {
-          success: false,
-          error: 'Solo el Superadministrador puede designar administradores.',
-        };
-      }
     }
 
     const newAdminStatus = newRole === 'player' ? null : 'approved';

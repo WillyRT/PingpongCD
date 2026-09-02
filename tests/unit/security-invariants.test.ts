@@ -6,6 +6,8 @@ import {
   isSuperAdminProfile,
   isApprovedAdmin,
   isApprovedStaff,
+  canConfirmOrDisputeMatch,
+  authorizeRoleChange,
 } from '../../lib/auth/roles';
 
 describe('Security Invariants Suite (Blindaje de Seguridad Permanente)', () => {
@@ -43,54 +45,33 @@ describe('Security Invariants Suite (Blindaje de Seguridad Permanente)', () => {
   });
 
   // =========================================================================
-  // 2. MATCH CONFIRMATION PARTICIPANT AUTHORIZATION INVARIANT
+  // 2. MATCH CONFIRMATION & DISPUTE AUTHORIZATION INVARIANT (canConfirmOrDisputeMatch)
   // =========================================================================
-  describe('2. Match Confirmation & Dispute Authorization Invariants', () => {
-    function verifyMatchParticipantAuthorization(
-      match: { player1_id: string; player2_id: string; reported_by_id?: string | null },
-      callerId: string,
-      callerRole: 'player' | 'referee' | 'admin' | 'super_admin'
-    ): { authorized: boolean; error?: string; status?: number } {
-      const isPrivileged = callerRole === 'referee' || callerRole === 'admin' || callerRole === 'super_admin';
-      const isParticipant = match.player1_id === callerId || match.player2_id === callerId;
+  describe('2. Match Confirmation & Dispute Authorization Invariants (canConfirmOrDisputeMatch)', () => {
+    const sampleMatch = {
+      player1_id: 'player-1',
+      player2_id: 'player-2',
+      reported_by_id: 'player-1',
+    };
 
-      if (!isPrivileged && !isParticipant) {
-        return {
-          authorized: false,
-          status: 403,
-          error: '403 Forbidden: No autorizado para confirmar o impugnar este partido.',
-        };
-      }
-
-      return { authorized: true };
-    }
-
-    it('rejects third-party players (not player1_id nor player2_id) with 403 Forbidden', () => {
-      const match = { player1_id: 'player-1', player2_id: 'player-2', reported_by_id: 'player-1' };
-      const intruderResult = verifyMatchParticipantAuthorization(match, 'intruder-player', 'player');
-
-      expect(intruderResult.authorized).toBe(false);
-      expect(intruderResult.status).toBe(403);
-      expect(intruderResult.error).toContain('403 Forbidden');
+    it('rejects third-party players (not player1_id nor player2_id)', () => {
+      expect(canConfirmOrDisputeMatch(sampleMatch, 'intruder-player', 'player')).toBe(false);
     });
 
-    it('allows participant opponent to confirm or dispute', () => {
-      const match = { player1_id: 'player-1', player2_id: 'player-2', reported_by_id: 'player-1' };
-      const opponentResult = verifyMatchParticipantAuthorization(match, 'player-2', 'player');
-
-      expect(opponentResult.authorized).toBe(true);
+    it('allows match participant players (player1 or player2)', () => {
+      expect(canConfirmOrDisputeMatch(sampleMatch, 'player-1', 'player')).toBe(true);
+      expect(canConfirmOrDisputeMatch(sampleMatch, 'player-2', 'player')).toBe(true);
     });
 
-    it('allows referee/admin to oversee matches as privileged staff', () => {
-      const match = { player1_id: 'player-1', player2_id: 'player-2', reported_by_id: 'player-1' };
-      const refereeResult = verifyMatchParticipantAuthorization(match, 'referee-user', 'referee');
-
-      expect(refereeResult.authorized).toBe(true);
+    it('allows privileged staff (referee, admin, super_admin) regardless of match participants', () => {
+      expect(canConfirmOrDisputeMatch(sampleMatch, 'referee-user', 'referee')).toBe(true);
+      expect(canConfirmOrDisputeMatch(sampleMatch, 'admin-user', 'admin')).toBe(true);
+      expect(canConfirmOrDisputeMatch(sampleMatch, 'super-user', 'super_admin')).toBe(true);
     });
   });
 
   // =========================================================================
-  // 3. PRODUCTION SESSION_SECRET INVARIANT
+  // 3. PRODUCTION SESSION_SECRET INVARIANT (getSigningSecret)
   // =========================================================================
   describe('3. Cryptographic Session Secret Invariants (getSigningSecret)', () => {
     const originalEnv = process.env;
@@ -120,7 +101,7 @@ describe('Security Invariants Suite (Blindaje de Seguridad Permanente)', () => {
   });
 
   // =========================================================================
-  // 4. ADMIN APPROVAL INVARIANTS (NO PENDING/NONE BYPASS)
+  // 4. ADMIN APPROVAL INVARIANTS (isApprovedAdmin & isApprovedStaff)
   // =========================================================================
   describe('4. Admin Approval & Staff Access Invariants', () => {
     it('rejects user with role="admin" but admin_status="pending" from isApprovedAdmin and isApprovedStaff', () => {
@@ -167,7 +148,7 @@ describe('Security Invariants Suite (Blindaje de Seguridad Permanente)', () => {
   });
 
   // =========================================================================
-  // 5. UNFORGEABLE SUPERADMIN IDENTITY
+  // 5. UNFORGEABLE SUPERADMIN IDENTITY (isSuperAdminProfile)
   // =========================================================================
   describe('5. Superadmin Identity Invariants (isSuperAdminProfile)', () => {
     it('recognizes root superadmin with case-insensitive and whitespace-padded email', () => {
@@ -187,34 +168,82 @@ describe('Security Invariants Suite (Blindaje de Seguridad Permanente)', () => {
   });
 
   // =========================================================================
-  // 6. ROOT SUPERADMIN PROTECTION INVARIANT
+  // 6. TIERED ROLE AUTHORIZATION & ROOT PROTECTION (authorizeRoleChange)
   // =========================================================================
-  describe('6. Root Superadmin Role Protection Invariant', () => {
-    function simulateUpdateUserRoleProtected(
-      target: { email?: string | null; role?: string | null }
-    ): { success: boolean; error?: string } {
-      if (isSuperAdminProfile(target)) {
-        return {
-          success: false,
-          error: 'No se puede modificar el rol del Superadministrador principal.',
-        };
-      }
-      return { success: true };
-    }
-
+  describe('6. Tiered Role Authorization & Root Protection (authorizeRoleChange)', () => {
     it('prevents modifying the root superadmin by email or role', () => {
-      const byEmail = simulateUpdateUserRoleProtected({ email: SUPER_ADMIN_EMAIL, role: 'player' });
-      expect(byEmail.success).toBe(false);
-      expect(byEmail.error).toContain('No se puede modificar el rol del Superadministrador principal');
+      const caller = { email: SUPER_ADMIN_EMAIL, role: 'super_admin', admin_status: 'approved' };
+      
+      const byEmail = authorizeRoleChange(caller, { email: SUPER_ADMIN_EMAIL, role: 'player' }, 'player');
+      expect(byEmail.allowed).toBe(false);
+      if (!byEmail.allowed) {
+        expect(byEmail.error).toContain('No se puede modificar el rol del Superadministrador principal');
+      }
 
-      const byRole = simulateUpdateUserRoleProtected({ email: 'super@example.com', role: 'super_admin' });
-      expect(byRole.success).toBe(false);
-      expect(byRole.error).toContain('No se puede modificar el rol del Superadministrador principal');
+      const byRole = authorizeRoleChange(caller, { email: 'other@example.com', role: 'super_admin' }, 'player');
+      expect(byRole.allowed).toBe(false);
+      if (!byRole.allowed) {
+        expect(byRole.error).toContain('No se puede modificar el rol del Superadministrador principal');
+      }
     });
 
-    it('allows modifying non-superadmin target', () => {
-      const normalTarget = simulateUpdateUserRoleProtected({ email: 'vecino@example.com', role: 'player' });
-      expect(normalTarget.success).toBe(true);
+    it('rejects unapproved admin or player caller from modifying roles', () => {
+      const unapprovedCaller = { email: 'pending@example.com', role: 'admin', admin_status: 'pending' };
+      const playerCaller = { email: 'player@example.com', role: 'player', admin_status: null };
+      const target = { email: 'target@example.com', role: 'player' };
+
+      const res1 = authorizeRoleChange(unapprovedCaller, target, 'referee');
+      expect(res1.allowed).toBe(false);
+
+      const res2 = authorizeRoleChange(playerCaller, target, 'referee');
+      expect(res2.allowed).toBe(false);
+    });
+
+    it('rejects approved admin attempting to assign admin role', () => {
+      const adminCaller = { email: 'admin@example.com', role: 'admin', admin_status: 'approved' };
+      const target = { email: 'target@example.com', role: 'player' };
+
+      const res = authorizeRoleChange(adminCaller, target, 'admin');
+      expect(res.allowed).toBe(false);
+      if (!res.allowed) {
+        expect(res.error).toContain('Solo el Superadministrador puede designar administradores');
+      }
+    });
+
+    it('rejects approved admin attempting to modify another admin', () => {
+      const adminCaller = { email: 'admin@example.com', role: 'admin', admin_status: 'approved' };
+      const targetAdmin = { email: 'other_admin@example.com', role: 'admin' };
+
+      const res = authorizeRoleChange(adminCaller, targetAdmin, 'player');
+      expect(res.allowed).toBe(false);
+      if (!res.allowed) {
+        expect(res.error).toContain('Solo el Superadministrador puede modificar a otros administradores');
+      }
+    });
+
+    it('allows approved admin to assign referee role to a player', () => {
+      const adminCaller = { email: 'admin@example.com', role: 'admin', admin_status: 'approved' };
+      const target = { email: 'target@example.com', role: 'player' };
+
+      const res = authorizeRoleChange(adminCaller, target, 'referee');
+      expect(res.allowed).toBe(true);
+    });
+
+    it('allows approved admin to demote referee to player', () => {
+      const adminCaller = { email: 'admin@example.com', role: 'admin', admin_status: 'approved' };
+      const target = { email: 'referee@example.com', role: 'referee' };
+
+      const res = authorizeRoleChange(adminCaller, target, 'player');
+      expect(res.allowed).toBe(true);
+    });
+
+    it('allows superadmin to assign admin, referee, or player to any eligible target', () => {
+      const superCaller = { email: SUPER_ADMIN_EMAIL, role: 'super_admin', admin_status: 'approved' };
+      const target = { email: 'target@example.com', role: 'player' };
+
+      expect(authorizeRoleChange(superCaller, target, 'admin').allowed).toBe(true);
+      expect(authorizeRoleChange(superCaller, target, 'referee').allowed).toBe(true);
+      expect(authorizeRoleChange(superCaller, target, 'player').allowed).toBe(true);
     });
   });
 });
