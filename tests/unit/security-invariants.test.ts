@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+﻿import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { validateRedirectUrl } from '../../app/auth/callback/route';
 import { getSigningSecret } from '../../lib/auth/player-session';
 import {
@@ -43,9 +43,56 @@ describe('Security Invariants Suite (Blindaje de Seguridad Permanente)', () => {
   });
 
   // =========================================================================
-  // 2. PRODUCTION SESSION_SECRET INVARIANT
+  // 2. MATCH CONFIRMATION PARTICIPANT AUTHORIZATION INVARIANT
   // =========================================================================
-  describe('2. Cryptographic Session Secret Invariants (getSigningSecret)', () => {
+  describe('2. Match Confirmation & Dispute Authorization Invariants', () => {
+    function verifyMatchParticipantAuthorization(
+      match: { player1_id: string; player2_id: string; reported_by_id?: string | null },
+      callerId: string,
+      callerRole: 'player' | 'referee' | 'admin' | 'super_admin'
+    ): { authorized: boolean; error?: string; status?: number } {
+      const isPrivileged = callerRole === 'referee' || callerRole === 'admin' || callerRole === 'super_admin';
+      const isParticipant = match.player1_id === callerId || match.player2_id === callerId;
+
+      if (!isPrivileged && !isParticipant) {
+        return {
+          authorized: false,
+          status: 403,
+          error: '403 Forbidden: No autorizado para confirmar o impugnar este partido.',
+        };
+      }
+
+      return { authorized: true };
+    }
+
+    it('rejects third-party players (not player1_id nor player2_id) with 403 Forbidden', () => {
+      const match = { player1_id: 'player-1', player2_id: 'player-2', reported_by_id: 'player-1' };
+      const intruderResult = verifyMatchParticipantAuthorization(match, 'intruder-player', 'player');
+
+      expect(intruderResult.authorized).toBe(false);
+      expect(intruderResult.status).toBe(403);
+      expect(intruderResult.error).toContain('403 Forbidden');
+    });
+
+    it('allows participant opponent to confirm or dispute', () => {
+      const match = { player1_id: 'player-1', player2_id: 'player-2', reported_by_id: 'player-1' };
+      const opponentResult = verifyMatchParticipantAuthorization(match, 'player-2', 'player');
+
+      expect(opponentResult.authorized).toBe(true);
+    });
+
+    it('allows referee/admin to oversee matches as privileged staff', () => {
+      const match = { player1_id: 'player-1', player2_id: 'player-2', reported_by_id: 'player-1' };
+      const refereeResult = verifyMatchParticipantAuthorization(match, 'referee-user', 'referee');
+
+      expect(refereeResult.authorized).toBe(true);
+    });
+  });
+
+  // =========================================================================
+  // 3. PRODUCTION SESSION_SECRET INVARIANT
+  // =========================================================================
+  describe('3. Cryptographic Session Secret Invariants (getSigningSecret)', () => {
     const originalEnv = process.env;
 
     beforeEach(() => {
@@ -73,9 +120,9 @@ describe('Security Invariants Suite (Blindaje de Seguridad Permanente)', () => {
   });
 
   // =========================================================================
-  // 3. ADMIN APPROVAL INVARIANTS (NO PENDING/NONE BYPASS)
+  // 4. ADMIN APPROVAL INVARIANTS (NO PENDING/NONE BYPASS)
   // =========================================================================
-  describe('3. Admin Approval & Staff Access Invariants', () => {
+  describe('4. Admin Approval & Staff Access Invariants', () => {
     it('rejects user with role="admin" but admin_status="pending" from isApprovedAdmin and isApprovedStaff', () => {
       const pendingAdmin = { role: 'admin', admin_status: 'pending' };
       expect(isApprovedAdmin(pendingAdmin)).toBe(false);
@@ -120,9 +167,9 @@ describe('Security Invariants Suite (Blindaje de Seguridad Permanente)', () => {
   });
 
   // =========================================================================
-  // 4. UNFORGEABLE SUPERADMIN IDENTITY
+  // 5. UNFORGEABLE SUPERADMIN IDENTITY
   // =========================================================================
-  describe('4. Superadmin Identity Invariants (isSuperAdminProfile)', () => {
+  describe('5. Superadmin Identity Invariants (isSuperAdminProfile)', () => {
     it('recognizes root superadmin with case-insensitive and whitespace-padded email', () => {
       expect(isSuperAdminProfile({ email: '  GuillermoRiveraTerriza@Gmail.com  ', role: 'player' })).toBe(true);
       expect(isSuperAdminProfile({ email: 'GUILLERMORIVERATERRIZA@GMAIL.COM', role: 'player' })).toBe(true);
@@ -140,9 +187,9 @@ describe('Security Invariants Suite (Blindaje de Seguridad Permanente)', () => {
   });
 
   // =========================================================================
-  // 5. ROOT SUPERADMIN PROTECTION INVARIANT
+  // 6. ROOT SUPERADMIN PROTECTION INVARIANT
   // =========================================================================
-  describe('5. Root Superadmin Role Protection Invariant', () => {
+  describe('6. Root Superadmin Role Protection Invariant', () => {
     function simulateUpdateUserRoleProtected(
       target: { email?: string | null; role?: string | null }
     ): { success: boolean; error?: string } {
