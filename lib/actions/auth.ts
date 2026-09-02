@@ -1,4 +1,4 @@
-﻿'use server';
+'use server';
 
 import { cookies } from 'next/headers';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -13,6 +13,7 @@ import {
   type RegistrationChallengeData,
 } from '@/lib/auth/verification-code';
 import { sendOtpEmail } from '@/lib/email/resend';
+import { isSuperAdminProfile, isApprovedStaff } from '@/lib/auth/roles';
 
 export interface RequestOtpResult {
   success: boolean;
@@ -126,7 +127,7 @@ export async function verifyLoginOtpAction(formData: {
       .eq('email', cleanEmail)
       .maybeSingle();
 
-    const isSuperAdmin = cleanEmail === 'guillermoriveraterriza@gmail.com' || profile?.role === 'super_admin';
+    const isSuperAdmin = isSuperAdminProfile({ email: cleanEmail, role: profile?.role });
 
     if (!profile) {
       const newId = crypto.randomUUID();
@@ -152,7 +153,7 @@ export async function verifyLoginOtpAction(formData: {
     }
 
     const role = isSuperAdmin ? 'super_admin' : (profile?.role || 'player');
-    const isAdmin = isSuperAdmin || (role === 'admin' && profile?.admin_status === 'approved') || role === 'referee';
+    const shouldRouteToStaffArea = isSuperAdmin || isApprovedStaff(profile);
 
     // Issue cryptographic tourneymaster_session cookie
     if (profile) {
@@ -167,7 +168,7 @@ export async function verifyLoginOtpAction(formData: {
     return {
       success: true,
       role,
-      destination: isAdmin ? '/admin' : '/me',
+      destination: shouldRouteToStaffArea ? '/admin' : '/me',
     };
   } catch (err: any) {
     return {

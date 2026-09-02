@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
+import { isSuperAdminProfile, isApprovedStaff } from '@/lib/auth/roles';
 import { AdminTournamentClient } from './AdminTournamentClient';
 
 interface PageProps {
@@ -14,20 +15,17 @@ export default async function AdminTournamentDetailPage({ params }: PageProps) {
 
   if (!user) redirect('/login?redirectTo=/admin');
 
-  // Verify admin
+  // Verify admin or referee
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, admin_status')
     .eq('id', user.id)
     .single();
 
-  const isSuperAdmin =
-    profile?.role === 'super_admin' ||
-    user.email?.toLowerCase() === 'guillermoriveraterriza@gmail.com';
+  const isSuperAdmin = isSuperAdminProfile({ email: user.email, role: profile?.role });
+  const isStaff = isSuperAdmin || isApprovedStaff(profile);
 
-  const isReferee = profile?.role === 'referee';
-
-  if (profile?.role !== 'admin' && !isSuperAdmin && !isReferee) {
+  if (!isStaff) {
     redirect('/me');
   }
 

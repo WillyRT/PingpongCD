@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createPlayerSessionToken, PLAYER_SESSION_COOKIE_OPTIONS } from '@/lib/auth/player-session';
 import { cookies } from 'next/headers';
+import { isSuperAdminProfile, isApprovedStaff } from '@/lib/auth/roles';
 
 /**
  * Validates the redirectTo query parameter to prevent Open Redirect attacks.
@@ -57,7 +58,7 @@ export async function GET(request: Request) {
         .eq('email', userEmail)
         .maybeSingle();
 
-      const isSuperAdmin = userEmail === 'guillermoriveraterriza@gmail.com' || profile?.role === 'super_admin';
+      const isSuperAdmin = isSuperAdminProfile({ email: userEmail, role: profile?.role });
       const role = isSuperAdmin ? 'super_admin' : (profile?.role || 'player');
 
       // Si es jugador, emitir cookie de sesión de jugador
@@ -77,7 +78,7 @@ export async function GET(request: Request) {
         }
       }
 
-      if (role === 'super_admin' || role === 'admin' || role === 'referee') {
+      if (isSuperAdmin || isApprovedStaff(profile)) {
         return NextResponse.redirect(new URL('/admin', requestUrl.origin));
       }
 

@@ -9,6 +9,7 @@ import { PlayerActiveMatchCard } from '@/components/PlayerActiveMatchCard';
 import { PendingMatchValidations, type PendingValidationMatch } from '@/components/PendingMatchValidations';
 import { PlayerProfileView, type MatchDetailItem } from '@/components/PlayerProfileView';
 import { ParticipantCheckInCard } from '@/components/ParticipantCheckInCard';
+import { isSuperAdminProfile, isApprovedStaff } from '@/lib/auth/roles';
 import type { AgeCategory } from '@/lib/types/domain';
 
 export default async function PlayerPortalPage() {
@@ -57,7 +58,7 @@ export default async function PlayerPortalPage() {
   // 4. Auto-provision profile if user is authenticated via Supabase Auth
   if (!profile && user?.email) {
     const userEmail = user.email.toLowerCase();
-    const isSuperAdmin = userEmail === 'guillermoriveraterriza@gmail.com';
+    const isSuperAdmin = isSuperAdminProfile({ email: userEmail, role: undefined });
     const fallbackName = user.user_metadata?.name || userEmail.split('@')[0];
     const newProfile = {
       id: user.id,
@@ -291,10 +292,8 @@ export default async function PlayerPortalPage() {
     });
 
   const isStaff =
-    profile.role === 'admin' ||
-    profile.role === 'super_admin' ||
-    profile.role === 'referee' ||
-    user?.email === 'guillermoriveraterriza@gmail.com';
+    isSuperAdminProfile({ email: user?.email || profile.email, role: profile.role }) ||
+    isApprovedStaff(profile);
 
   // 🚨 High Priority "¡A PISTA!" Alert: Match on physical table (1 to 4) ready or in progress
   const callingMatch = (allMatches || []).find((m: any) => {

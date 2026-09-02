@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { validateRedirectUrl } from '../../app/auth/callback/route';
 import { calculateStandings, type ConfirmedMatch } from '../../lib/engine/standings';
+import { SUPER_ADMIN_EMAIL, isSuperAdminProfile, isApprovedAdmin, isApprovedStaff } from '../../lib/auth/roles';
 
 describe('Security, RBAC, Idempotency & Negative Testing Suite', () => {
 
@@ -280,16 +281,9 @@ describe('Security, RBAC, Idempotency & Negative Testing Suite', () => {
   // 5. STAFF & REFEREE ROLE MANAGEMENT & ADMIN_STATUS RBAC
   // =========================================================================
   describe('Staff & Referee Role Management & Admin Approval Invariants', () => {
-    const SUPER_ADMIN_EMAIL = 'guillermoriveraterriza@gmail.com';
-
-    function isSuperAdminProfileTest(profile: { email?: string | null; role?: string } | null | undefined): boolean {
-      if (!profile) return false;
-      return profile.role === 'super_admin' || profile.email?.toLowerCase().trim() === SUPER_ADMIN_EMAIL;
-    }
-
     function checkStationsConsoleAccess(profile: { email?: string | null; role?: string; admin_status?: string | null } | null) {
-      const isSuperAdmin = isSuperAdminProfileTest(profile);
-      const isAdmin = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_status === 'approved');
+      const isSuperAdmin = isSuperAdminProfile(profile);
+      const isAdmin = isSuperAdmin || isApprovedAdmin(profile);
       const isReferee = profile?.role === 'referee';
       return {
         authorized: isAdmin || isReferee,
@@ -339,8 +333,8 @@ describe('Security, RBAC, Idempotency & Negative Testing Suite', () => {
       target: { id: string; email: string; role: string; admin_status: string | null },
       newRole: 'player' | 'referee' | 'admin'
     ): { success: boolean; error?: string; updated?: { role: string; admin_status: string | null } } {
-      const isCallerSuperAdmin = isSuperAdminProfileTest(caller);
-      const isCallerApprovedAdmin = caller.role === 'admin' && caller.admin_status === 'approved';
+      const isCallerSuperAdmin = isSuperAdminProfile(caller);
+      const isCallerApprovedAdmin = isApprovedAdmin(caller);
 
       if (!isCallerSuperAdmin && !isCallerApprovedAdmin) {
         return {
@@ -349,7 +343,7 @@ describe('Security, RBAC, Idempotency & Negative Testing Suite', () => {
         };
       }
 
-      if (isSuperAdminProfileTest(target)) {
+      if (isSuperAdminProfile(target)) {
         return {
           success: false,
           error: 'No se puede modificar el rol del Superadministrador principal.',

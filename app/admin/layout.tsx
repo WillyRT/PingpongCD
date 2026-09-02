@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { isSuperAdminProfile, isApprovedAdmin } from '@/lib/auth/roles';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -16,10 +17,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .eq('email', cleanEmail)
     .maybeSingle();
 
-  const isAdmin =
-    cleanEmail === 'guillermoriveraterriza@gmail.com' ||
-    profile?.role === 'super_admin' ||
-    (profile?.role === 'admin' && profile?.admin_status === 'approved');
+  const isSuperAdmin = isSuperAdminProfile({ email: cleanEmail, role: profile?.role });
+  const isAdmin = isSuperAdmin || isApprovedAdmin(profile);
 
   if (!isAdmin) {
     redirect('/?error=unauthorized');

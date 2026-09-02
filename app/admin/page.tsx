@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { isSuperAdminProfile } from '@/lib/auth/rbac';
+import { isSuperAdminProfile, isApprovedAdmin } from '@/lib/auth/roles';
 import { AdminUserManagement } from './AdminUserManagement';
 
 export default async function AdminDashboard() {
@@ -19,9 +19,7 @@ export default async function AdminDashboard() {
     .maybeSingle();
 
   const isSuperAdmin = isSuperAdminProfile({ email: cleanEmail, role: profile?.role });
-  const isAdmin =
-    isSuperAdmin ||
-    (profile?.role === 'admin' && profile?.admin_status === 'approved');
+  const isAdmin = isSuperAdmin || isApprovedAdmin(profile);
 
   if (!isAdmin) {
     redirect('/?error=unauthorized');

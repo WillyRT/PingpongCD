@@ -1,5 +1,5 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { isSuperAdminProfile } from '@/lib/auth/rbac';
+import { isSuperAdminProfile, isApprovedAdmin } from '@/lib/auth/roles';
 import { HomeClient } from '@/components/HomeClient';
 import RecentChampions from '@/components/RecentChampions';
 import type { TournamentRow } from '@/lib/types/database';
@@ -25,9 +25,7 @@ export default async function HomePage() {
         .maybeSingle();
 
       const isSuperAdmin = isSuperAdminProfile({ email: cleanEmail, role: profile?.role });
-      isAdmin =
-        isSuperAdmin ||
-        (profile?.role === 'admin' && profile?.admin_status === 'approved');
+      isAdmin = isSuperAdmin || isApprovedAdmin(profile);
     }
 
     const { data } = await admin

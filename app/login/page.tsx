@@ -1,8 +1,11 @@
+import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { getPlayerSession } from '@/lib/auth/player-session';
 import { redirect } from 'next/navigation';
-import { Suspense } from 'react';
 import LoginClient from './LoginClient';
+import { isSuperAdminProfile, isApprovedStaff } from '@/lib/auth/roles';
+
+export const dynamic = 'force-dynamic';
 
 interface LoginPageProps {
   searchParams: Promise<{
@@ -10,6 +13,7 @@ interface LoginPageProps {
     redirect?: string;
     next?: string;
     error?: string;
+    registered?: string;
   }>;
 }
 
@@ -31,14 +35,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       .eq('email', userEmail)
       .maybeSingle();
 
-    const isSuperAdmin = userEmail === 'guillermoriveraterriza@gmail.com' || profile?.role === 'super_admin';
-    const isAdmin = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_status === 'approved') || profile?.role === 'referee';
+    const shouldRouteToStaffArea =
+      isSuperAdminProfile({ email: userEmail, role: profile?.role }) ||
+      isApprovedStaff(profile);
 
     if (targetRedirect && targetRedirect.startsWith('/') && !targetRedirect.startsWith('//') && targetRedirect !== '/login') {
       redirect(targetRedirect);
     }
 
-    if (isAdmin) {
+    if (shouldRouteToStaffArea) {
       redirect('/admin');
     } else {
       redirect('/me');

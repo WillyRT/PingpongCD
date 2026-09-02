@@ -2,7 +2,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import { PlayerProfileView, type MatchDetailItem } from '@/components/PlayerProfileView';
 import { getPlayerSession } from '@/lib/auth/player-session';
-import { isSuperAdminProfile } from '@/lib/auth/rbac';
+import { isSuperAdminProfile, isApprovedAdmin } from '@/lib/auth/roles';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -58,9 +58,7 @@ export default async function PublicPlayerProfilePage({ params }: PageProps) {
       .maybeSingle();
 
     const isSuperAdmin = isSuperAdminProfile({ email: cleanViewerEmail, role: viewerProfile?.role });
-    isAdmin =
-      isSuperAdmin ||
-      (viewerProfile?.role === 'admin' && viewerProfile?.admin_status === 'approved');
+    isAdmin = isSuperAdmin || isApprovedAdmin(viewerProfile);
   }
 
   // Fetch all matches involving this player

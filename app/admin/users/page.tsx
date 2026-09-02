@@ -1,7 +1,7 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { getPlayerSession } from '@/lib/auth/player-session';
 import { redirect } from 'next/navigation';
-import { isSuperAdminProfile } from '@/lib/auth/rbac';
+import { isSuperAdminProfile, isApprovedAdmin } from '@/lib/auth/roles';
 import { AdminUsersClient, type AdminManagedUser } from '@/components/admin/AdminUsersClient';
 
 export const dynamic = 'force-dynamic';
@@ -40,10 +40,10 @@ export default async function AdminUsersPage() {
   }
 
   const isSuperAdmin = isSuperAdminProfile(callerProfile || { email: cleanEmail, role: undefined });
-  const isApprovedAdmin = callerProfile?.role === 'admin' && callerProfile?.admin_status === 'approved';
+  const isApproved = isApprovedAdmin(callerProfile);
 
   // 2. Strict Superadmin & Approved Admin Access Protection
-  if (!isSuperAdmin && !isApprovedAdmin) {
+  if (!isSuperAdmin && !isApproved) {
     redirect('/?error=unauthorized');
   }
 

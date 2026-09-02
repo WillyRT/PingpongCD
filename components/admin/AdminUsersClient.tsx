@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { updateUserRoleAction } from '@/lib/actions/admin';
-import { isSuperAdminProfile } from '@/lib/auth/rbac';
+import { isSuperAdminProfile } from '@/lib/auth/roles';
 
 export interface AdminManagedUser {
   id: string;

@@ -8,6 +8,7 @@ import { validateScoreForStage, determineWinner } from '@/lib/engine/scoring';
 import { updateRatingsForMatch } from '@/lib/engine/rating';
 import { evaluateExpectedScore } from '@/lib/engine/analytics';
 import { isGroupComplete } from '@/lib/engine/tournament-state';
+import { isSuperAdminProfile, isApprovedStaff } from '@/lib/auth/roles';
 import type { ActionResponse } from './tournament';
 
 /** Helper to check if caller has referee, admin or super_admin permissions */
@@ -21,12 +22,7 @@ async function checkRefereeOrAdmin(userId?: string | null): Promise<boolean> {
     .maybeSingle();
 
   if (!profile) return false;
-
-  if (profile.email?.toLowerCase() === 'guillermoriveraterriza@gmail.com') return true;
-  if (profile.role === 'super_admin' || profile.role === 'referee') return true;
-  if (profile.role === 'admin' && profile.admin_status === 'approved') return true;
-
-  return false;
+  return isSuperAdminProfile(profile) || isApprovedStaff(profile);
 }
 
 /**

@@ -14,6 +14,7 @@ import { updateRating, type PlayerRating, type RatingMatchResult } from '@/lib/e
 import { identifySub14Finalists } from '@/lib/engine/tournament-rules';
 import { getPlayerSession, setPlayerSessionCookie } from '@/lib/auth/player-session';
 import { isSeniorEligible } from '@/lib/engine/categories';
+import { isSuperAdminProfile, isApprovedAdmin } from '@/lib/auth/roles';
 import type { AgeCategory } from '@/lib/types/domain';
 
 export interface ActionResponse<T = unknown> {
@@ -48,9 +49,8 @@ export async function createTournamentAction(formData: {
       .maybeSingle();
 
     const isAuthorized =
-      cleanEmail === 'guillermoriveraterriza@gmail.com' ||
-      profile?.role === 'super_admin' ||
-      (profile?.role === 'admin' && profile?.admin_status === 'approved');
+      isSuperAdminProfile({ email: cleanEmail, role: profile?.role }) ||
+      isApprovedAdmin(profile);
 
     if (!isAuthorized) {
       return { success: false, error: 'Acceso denegado: Solo administradores autorizados pueden crear torneos.' };
@@ -133,9 +133,8 @@ export async function openRegistrationAction(tournamentId: string): Promise<Acti
       .maybeSingle();
 
     const isAuthorized =
-      cleanEmail === 'guillermoriveraterriza@gmail.com' ||
-      profile?.role === 'super_admin' ||
-      (profile?.role === 'admin' && profile?.admin_status === 'approved');
+      isSuperAdminProfile({ email: cleanEmail, role: profile?.role }) ||
+      isApprovedAdmin(profile);
 
     if (!isAuthorized) {
       return { success: false, error: 'Solo administradores autorizados pueden abrir inscripciones.' };
@@ -205,7 +204,7 @@ export async function joinTournamentAction(
 
     if (!profile && user) {
       const fallbackName = user.user_metadata?.name || cleanEmail.split('@')[0] || 'Jugador';
-      const isSuperAdmin = cleanEmail === 'guillermoriveraterriza@gmail.com';
+      const isSuperAdmin = isSuperAdminProfile({ email: cleanEmail, role: undefined });
       const newProfile = {
         id: user.id,
         user_id: user.id,
@@ -626,13 +625,12 @@ export async function finishTournamentAction(tournamentId: string): Promise<Acti
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, admin_status')
+      .select('role, admin_status, email')
       .eq('id', user.id)
       .maybeSingle();
 
-    const isAdmin =
-      profile?.role === 'super_admin' ||
-      (profile?.role === 'admin' && profile?.admin_status === 'approved');
+    const isSuperAdmin = isSuperAdminProfile({ email: user.email, role: profile?.role });
+    const isAdmin = isSuperAdmin || isApprovedAdmin(profile);
 
     if (!isAdmin) {
       return { success: false, error: 'Solo administradores aprobados pueden finalizar torneos.' };
@@ -904,9 +902,8 @@ export async function deleteTournamentAction(tournamentId: string): Promise<Acti
       .maybeSingle();
 
     const isAdmin =
-      cleanEmail === 'guillermoriveraterriza@gmail.com' ||
-      profile?.role === 'super_admin' ||
-      (profile?.role === 'admin' && profile?.admin_status === 'approved');
+      isSuperAdminProfile({ email: cleanEmail, role: profile?.role }) ||
+      isApprovedAdmin(profile);
 
     if (!isAdmin) {
       return { success: false, error: 'Permisos insuficientes para eliminar torneos' };

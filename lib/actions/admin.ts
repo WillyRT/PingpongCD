@@ -8,7 +8,7 @@ import { determineAgeCategory } from '@/lib/engine/categories';
 import { getPlayerSession } from '@/lib/auth/player-session';
 import type { ActionResponse } from './tournament';
 
-import { isSuperAdminProfile, isApprovedAdminProfile } from '@/lib/auth/rbac';
+import { isSuperAdminProfile, isApprovedAdmin, isApprovedStaff } from '@/lib/auth/roles';
 
 /** Helper to verify if user has admin/referee privileges based solely on database RBAC */
 export async function verifyAdminUser(): Promise<{
@@ -33,7 +33,7 @@ export async function verifyAdminUser(): Promise<{
     .single();
 
   const isSuperAdmin = isSuperAdminProfile({ email: user.email, role: profile?.role });
-  const isAdmin = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_status === 'approved');
+  const isAdmin = isSuperAdmin || isApprovedAdmin(profile);
   const isReferee = profile?.role === 'referee';
 
   return {
@@ -86,9 +86,9 @@ export async function updateUserRoleAction(
     }
 
     const isCallerSuperAdmin = isSuperAdminProfile(callerProfile || { email: cleanCallerEmail, role: undefined });
-    const isCallerApprovedAdmin = callerProfile?.role === 'admin' && callerProfile?.admin_status === 'approved';
+    const isCallerApproved = isApprovedAdmin(callerProfile);
 
-    if (!isCallerSuperAdmin && !isCallerApprovedAdmin) {
+    if (!isCallerSuperAdmin && !isCallerApproved) {
       return {
         success: false,
         error: 'Acceso denegado: Se requieren permisos de administrador o superadministrador.',
