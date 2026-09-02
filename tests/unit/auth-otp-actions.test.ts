@@ -119,4 +119,19 @@ describe('Passwordless OTP & Resend Auth Actions (lib/actions/auth.ts)', () => {
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/Código de verificación incorrecto o expirado/i);
   });
+
+  it('verifyLoginOtpAction strictly rejects master code 202600 in production environment', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
+
+    const res = await verifyLoginOtpAction({
+      email: 'guillermoriveraterriza@gmail.com',
+      code: '202600',
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toBe('Código de verificación incorrecto o expirado. Vuelve a intentarlo.');
+
+    (process.env as Record<string, string | undefined>).NODE_ENV = originalEnv;
+  });
 });

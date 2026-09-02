@@ -374,6 +374,34 @@ describe('Player Session Verification & Cookie Hardening Suite', () => {
       expect(result.valid).toBe(false);
       expect(result.reason).toMatch(/incorrecto/i);
     });
+
+    it('rejects master code 202600 in production environment', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
+
+      const challengeToken = await createRegistrationChallengeToken({
+        email: 'willy@example.com',
+        code: '123456',
+        tournamentId: 't-1',
+        playerId: 'p-1',
+        name: 'Willy',
+        category: 'plus14',
+        declaredLevel: 5,
+        assignedRating: 1500,
+      });
+
+      const result = await verifyRegistrationChallengeToken(
+        challengeToken,
+        '202600',
+        'willy@example.com',
+        't-1'
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.reason).toMatch(/incorrecto/i);
+
+      (process.env as Record<string, string | undefined>).NODE_ENV = originalEnv;
+    });
   });
 });
 

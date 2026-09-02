@@ -138,7 +138,11 @@ export function PublicJoinClient({
 
     if (s.birthDate) {
       setBirthDateOrAge(s.birthDate);
-      setCategory(determineAgeCategory(s.birthDate));
+      try {
+        setCategory(determineAgeCategory(s.birthDate));
+      } catch {
+        if (s.category) setCategory(s.category);
+      }
     } else if (s.category) {
       setCategory(s.category);
     }

@@ -41,8 +41,8 @@ export async function importHistoricalDataAction(input: {
       .eq('id', user.id)
       .single();
 
-    if (profile?.role !== 'admin') {
-      return { success: false, error: 'Only admins can import historical data' };
+    if (profile?.role !== 'admin' && profile?.role !== 'super_admin') {
+      return { success: false, error: 'Permisos insuficientes' };
     }
 
     // 1. Fetch existing canonical players and aliases from database
@@ -290,8 +290,8 @@ export async function resolveIdentityAction(input: {
       .eq('id', user.id)
       .single();
 
-    if (profile?.role !== 'admin') {
-      return { success: false, error: 'Admin only' };
+    if (profile?.role !== 'admin' && profile?.role !== 'super_admin') {
+      return { success: false, error: 'Permisos insuficientes' };
     }
 
     if (input.action === 'confirm_merge') {

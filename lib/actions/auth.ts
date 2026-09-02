@@ -97,7 +97,7 @@ export async function verifyLoginOtpAction(formData: {
       return { success: false, destination: '/login', error: 'Por favor, introduce el código de verificación.' };
     }
 
-    const isMasterCode = cleanCode === '202600';
+    const isMasterCode = process.env.NODE_ENV !== 'production' && cleanCode === '202600';
     let isValid = isMasterCode;
 
     if (!isValid) {
@@ -114,7 +114,10 @@ export async function verifyLoginOtpAction(formData: {
       return {
         success: false,
         destination: '/login',
-        error: 'Código de verificación incorrecto o expirado. Vuelve a intentarlo o usa el código maestro 202600.',
+        error:
+          process.env.NODE_ENV !== 'production'
+            ? 'Código de verificación incorrecto o expirado. Vuelve a intentarlo o usa el código maestro 202600.'
+            : 'Código de verificación incorrecto o expirado. Vuelve a intentarlo.',
       };
     }
 

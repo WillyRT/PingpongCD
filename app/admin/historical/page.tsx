@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getHistoricalSeasonSummaries } from '@/lib/data';
+import { evaluateUserPermissions } from '@/lib/auth/roles';
 import { HistoricalAdminClient } from './HistoricalAdminClient';
 
 export default async function HistoricalSeasonsPage() {
@@ -12,11 +13,12 @@ export default async function HistoricalSeasonsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, admin_status')
     .eq('id', user.id)
     .single();
 
-  if (profile?.role !== 'admin') {
+  const { isAdmin } = evaluateUserPermissions(profile, user.email);
+  if (!isAdmin) {
     redirect('/player');
   }
 

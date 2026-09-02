@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -192,9 +192,11 @@ export default function LoginClient({ initialRedirect, initialError }: LoginClie
             >
               ← Usar otro correo
             </button>
-            <span className="text-[10px] font-mono text-[var(--muted-foreground)]/60">
-              Dev code: 202600
-            </span>
+            {process.env.NODE_ENV !== 'production' && (
+              <span className="text-[10px] font-mono text-[var(--muted-foreground)]/60">
+                Dev code: 202600
+              </span>
+            )}
           </div>
         </div>
       ) : (

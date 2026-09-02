@@ -148,7 +148,7 @@ export async function verifyRegistrationChallengeToken(
       return { valid: false, reason: 'Has superado el límite de 5 intentos fallidos. El token ha sido invalidado.' };
     }
 
-    const isMasterCode = code.trim() === '202600';
+    const isMasterCode = process.env.NODE_ENV !== 'production' && code.trim() === '202600';
     if (!isMasterCode && payload.code.trim() !== code.trim()) {
       const currentAttempts = (payload.attempts || 0) + 1;
       const isExceeded = currentAttempts >= 5;

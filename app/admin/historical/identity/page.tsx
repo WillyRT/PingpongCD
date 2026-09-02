@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { evaluateUserPermissions } from '@/lib/auth/roles';
 import { IdentityResolutionClient } from './IdentityResolutionClient';
 
 export default async function IdentityResolutionPage() {
@@ -11,11 +12,12 @@ export default async function IdentityResolutionPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, admin_status')
     .eq('id', user.id)
     .single();
 
-  if (profile?.role !== 'admin') {
+  const { isAdmin } = evaluateUserPermissions(profile, user.email);
+  if (!isAdmin) {
     redirect('/player');
   }
 

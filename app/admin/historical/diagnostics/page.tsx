@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { evaluateUserPermissions } from '@/lib/auth/roles';
 import {
   diagnoseHistoricalData,
   type HistoricalTournamentWithMatches,
@@ -15,11 +16,12 @@ export default async function HistoricalDiagnosticsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, admin_status')
     .eq('id', user.id)
     .single();
 
-  if (profile?.role !== 'admin') {
+  const { isAdmin } = evaluateUserPermissions(profile, user.email);
+  if (!isAdmin) {
     redirect('/player');
   }
 
